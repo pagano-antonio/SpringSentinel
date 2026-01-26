@@ -1,0 +1,16 @@
+[
+  {
+    "file": "application.properties",
+    "line": 0,
+    "target": "OSIV",
+    "reason": "Open-In-View attivo",
+    "suggestion": "Imposta a false."
+  },
+  {
+    "file": "application.properties",
+    "line": 0,
+    "target": "Pool",
+    "reason": "Squilibrio Thread/DB",
+    "suggestion": "Aumenta pool."
+  }
+]
