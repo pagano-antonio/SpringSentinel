@@ -35,7 +35,21 @@ package com.beanspringboot;
 	    public static void main(String[] args) throws Exception {
 	        
 	        // --- 1. CONFIGURAZIONE PERCORSI ---
-	        String baseDir = "/Users/antonio.pagano/eclipse-workspace/ProvaCorsoSpringBoot/src/main/";
+	    	// Controlliamo se l'utente ha passato un argomento
+	        if (args.length == 0) {
+	            System.out.println("❌ Errore: Devi specificare il percorso del progetto da analizzare.");
+	            System.out.println("Uso: java -jar spring-sentinel.jar /percorso/del/tuo/progetto");
+	            return;
+	        }
+
+	        // Il primo argomento sarà la cartella base del progetto da analizzare
+	        String baseDir = args[0]; 
+	        
+	        // Assicuriamoci che il path finisca con lo slash corretto
+	        if (!baseDir.endsWith("/") && !baseDir.endsWith("\\")) {
+	            baseDir += File.separator;
+	        }
+	        
 	        String projectPath = baseDir + "java";
 	        String resourcesPath = baseDir + "resources";
 
