@@ -22,3 +22,19 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# Eclipse
+.settings/
+.classpath
+.project
+
+# macOS
+.DS_Store
+
+# Build (Maven)
+target/
+
+# Reports generati dal tool
+spring-sentinel-reports/
+audit-report.json
+audit-report.html
