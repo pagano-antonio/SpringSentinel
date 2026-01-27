@@ -18,17 +18,25 @@ Java: 17 or higher.
 Build Tool: Maven.
 
 📦 Installation & Build
-Clone the repository and build the executable "Fat JAR" using Maven:
+To use Spring Sentinel in your project, add the following configuration to your `pom.xml` file:
 
-Bash
-git clone https://github.com/pagano-antonio/SpringSentinel.git
-cd SpringSentinel
-mvn clean package
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>antpag</groupId>
+            <artifactId>spring-sentinel-maven-plugin</artifactId>
+            <version>1.1.1</version>
+        </plugin>
+    </plugins>
+</build>
+
 🖥️ Usage
-Run Spring Sentinel by passing the path of the Spring Boot project you want to analyze as the first argument:
+Run the audit directly from your terminal in the project root:
 
 Bash
-java -jar target/SpringSentinel-0.0.1-SNAPSHOT-jar-with-dependencies.jar /path/to/your/target-project
+mvn antpag:spring-sentinel-maven-plugin:audit
+
 📊 Output
 After the scan, you will find the results in the spring-sentinel-reports/ folder:
 
