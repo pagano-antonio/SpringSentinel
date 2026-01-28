@@ -41,20 +41,30 @@ mvn com.github.pagano-antonio:SpringSentinel:audit
 ```
 
 ## Smart Reporting
+
 After the scan, Spring Sentinel generates two types of reports in the target/spring-sentinel-reports/ folder:
+
 report.html:  A beautiful, human-readable dashboard for quick issue identification.
+
 report.json: Structured data designed for CI/CD pipelines, automated analysis, or custom dashboards.
 
 
 ## Key Audit Checks
 JPA & DB: Detects N+1 queries, EAGER fetching, and OSIV status.
+
 Transaction Safety: Identifies blocking I/O (REST, sleeps) inside @Transactional.
+
 Architecture: Finds Field Injection (@Autowired) and manual thread creation.
+
 Security: Scans for hardcoded secrets (passwords, API keys).
+
 Caching: Identifies missing TTL configurations.
 
+
 ##  Requirements
+
 Java: 17 or higher.
+
 Build Tool: Maven 3.6.0+.
 
 ## License
