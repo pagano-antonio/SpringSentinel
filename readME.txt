@@ -1,7 +1,9 @@
-Spring Sentinel
-Spring Sentinel is a high-performance static analysis tool for Spring Boot applications. It is designed to identify performance bottlenecks, JPA inefficiencies, and system configuration misalignments before they reach production.
+# Spring Sentinel
 
-🚀 Key Features
+**Spring Sentinel** is a powerful Maven Plugin designed for Spring Boot developers to perform static analysis and identify performance bottlenecks, security risks, and architectural smells.
+
+## Key Features
+**Spring Sentinel** is a powerful Maven Plugin designed for Spring Boot developers to perform static analysis and identify performance bottlenecks, security risks, and architectural smells.
 JPA Audit: Detects N+1 queries, FetchType.EAGER usage, and Cartesian Product risks.
 Transaction Safety: Identifies blocking I/O (REST calls, sleeps) inside @Transactional methods and detects proxy self-invocation bypasses.
 System Analysis: Validates the balance between Tomcat Thread Pools and HikariCP connection pools.
@@ -9,32 +11,51 @@ Architecture Integrity: Finds manual thread creation (new Thread()) and Prototyp
 Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files for CI/CD integration.
 
 
-🛠️ Requirements
-Java: 17 or higher.
-Build Tool: Maven.
 
-
-📦 Installation & Build
-To use Spring Sentinel in your project, add the following configuration to your `pom.xml` file:
+## 🚀 Quick Start
+### 1. Add the JitPack repository
+```xml
+<repositories>
+    <repository>
+        <id>jitpack.io</id>
+        <url>[https://jitpack.io](https://jitpack.io)</url>
+    </repository>
+</repositories>
+```
+### 2. Add the Plugin
+```xml
 <build>
     <plugins>
         <plugin>
-            <groupId>antpag</groupId>
-            <artifactId>spring-sentinel-maven-plugin</artifactId>
-            <version>1.1.1</version>
-        </plugin>
+            <groupId>com.github.pagano-antonio</groupId>
+            <artifactId>SpringSentinel</artifactId>
+            <version>v1.1.2</version> </plugin>
     </plugins>
 </build>
+```
 
-
-🖥️ Usage
+## Usage
 Run the audit directly from your terminal in the project root:
-mvn antpag:spring-sentinel-maven-plugin:audit
+```bash
+mvn com.github.pagano-antonio:SpringSentinel:audit
+```
 
-📊 Output
+## Smart Reporting
 After the scan, Spring Sentinel generates two types of reports in the target/spring-sentinel-reports/ folder:
-report.html: A beautiful, human-readable dashboard for quick issue identification.
+report.html:  A beautiful, human-readable dashboard for quick issue identification.
 report.json: Structured data designed for CI/CD pipelines, automated analysis, or custom dashboards.
 
-📝 License
-Distributed under the Apache License 2.0. See LICENSE for more information.
+
+## Key Audit Checks
+JPA & DB: Detects N+1 queries, EAGER fetching, and OSIV status.
+Transaction Safety: Identifies blocking I/O (REST, sleeps) inside @Transactional.
+Architecture: Finds Field Injection (@Autowired) and manual thread creation.
+Security: Scans for hardcoded secrets (passwords, API keys).
+Caching: Identifies missing TTL configurations.
+
+##  Requirements
+Java: 17 or higher.
+Build Tool: Maven 3.6.0+.
+
+## License
+Distributed under the Apache License 2.0.
