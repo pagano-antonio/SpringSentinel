@@ -20,14 +20,16 @@ public class StaticAnalysisCore {
     private final MavenProject project;
     private final List<AuditIssue> issues = new ArrayList<>();
 
-    // Costruttore per il Mojo (con MavenProject per analisi olistica)
+    // Parametri configurabili via Mojo (Feedback RepulsiveGoat3411)
+    private int maxDependencies = 7;
+    private String secretPattern = ".*(password|secret|apikey|pwd|token).*";
+
     public StaticAnalysisCore(Log log, MavenProject project) {
         this.log = log;
         this.project = project;
         configureJavaParser();
     }
 
-    // Costruttore per i Test Unitari (Project può essere null)
     public StaticAnalysisCore(Log log) {
         this(log, null);
     }
@@ -38,14 +40,24 @@ public class StaticAnalysisCore {
         StaticJavaParser.setConfiguration(config);
     }
 
+    // Setter per la configurazione dinamica dal Mojo
+    public void setMaxDependencies(int maxDependencies) {
+        this.maxDependencies = maxDependencies;
+    }
+
+    public void setSecretPattern(String secretPattern) {
+        this.secretPattern = secretPattern;
+    }
+
     public void executeAnalysis(File baseDir, File outputDir) throws Exception {
         Path javaPath = baseDir.toPath().resolve("src/main/java");
         Path resPath = baseDir.toPath().resolve("src/main/resources");
 
-        // 1. Analisi del POM (Analisi Olistica)
         AnalysisRules rules = new AnalysisRules(this.issues::add);
+
+        // 1. Analisi Olistica del POM
         if (project != null) {
-            log.info("Analisi olistica del file pom.xml...");
+            log.info("Analisi olistica delle dipendenze Maven...");
             rules.runProjectChecks(project);
         }
 
@@ -53,49 +65,49 @@ public class StaticAnalysisCore {
         Properties props = loadProperties(resPath);
         executeAnalysisWithPropsOnly(props, this.issues);
 
-        // 3. Analisi del Codice Java
+        // 3. Analisi del Codice Java con parametri flessibili
         if (Files.exists(javaPath)) {
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java")).forEach(path -> {
                     try {
                         CompilationUnit cu = StaticJavaParser.parse(path);
-                        rules.runAllChecks(cu, path.getFileName().toString(), props);
+                        // Passiamo i parametri configurabili alle regole
+                        rules.runAllChecks(cu, path.getFileName().toString(), props, maxDependencies, secretPattern);
                     } catch (IOException e) {
-                        log.error("Error parsing: " + path);
+                        log.error("Errore nel parsing del file: " + path);
                     }
                 });
             }
         }
 
-        // 4. Generazione Report
         new ReportGenerator().generateReports(outputDir, issues);
     }
 
     public void executeAnalysisWithPropsOnly(Properties props, List<AuditIssue> issuesList) {
         checkOSIV(props, issuesList);
-        checkPropertiesSecrets(props, issuesList);
+        checkPropertiesSecrets(props, issuesList, secretPattern);
         checkCriticalProperties(props, issuesList);
     }
 
     private void checkOSIV(Properties p, List<AuditIssue> issuesList) {
         if ("true".equals(p.getProperty("spring.jpa.open-in-view", "true"))) {
-            issuesList.add(new AuditIssue("application.properties", 0, "Architecture", "OSIV is Enabled", "Set spring.jpa.open-in-view=false."));
+            issuesList.add(new AuditIssue("application.properties", 0, "Architecture", "OSIV is Enabled", "Disabilita spring.jpa.open-in-view per evitare problemi di performance."));
         }
     }
 
-    private void checkPropertiesSecrets(Properties p, List<AuditIssue> issuesList) {
+    private void checkPropertiesSecrets(Properties p, List<AuditIssue> issuesList, String pattern) {
         p.forEach((key, value) -> {
             String k = key.toString().toLowerCase();
-            if ((k.contains("password") || k.contains("secret") || k.contains("apikey")) && !value.toString().matches("\\$\\{.*\\}")) {
-                issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", "Use env variables."));
+            // Applichiamo la Regex flessibile anche alle properties
+            if (k.matches(pattern) && !value.toString().matches("\\$\\{.*\\}")) {
+                issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", "Non scrivere segreti in chiaro. Usa le variabili d'ambiente."));
             }
         });
     }
 
     private void checkCriticalProperties(Properties p, List<AuditIssue> issuesList) {
-        // Controllo H2 Console in produzione (Olistico)
         if ("true".equals(p.getProperty("spring.h2.console.enabled"))) {
-            issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", "Disable H2 console in production for security."));
+            issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", "Disabilita la console H2 in produzione."));
         }
     }
 
@@ -103,17 +115,9 @@ public class StaticAnalysisCore {
         Properties props = new Properties();
         Path p = resPath.resolve("application.properties");
         if (Files.exists(p)) {
-            try (var is = Files.newInputStream(p)) { 
-                props.load(is); 
-            } catch (IOException e) { 
-                log.error("Props error"); 
-            }
+            try (var is = Files.newInputStream(p)) { props.load(is); } catch (IOException e) { log.error("Errore caricamento properties"); }
         }
         return props;
-    }
-
-    public List<AuditIssue> getIssues() {
-        return new ArrayList<>(issues);
     }
 
     public static class AuditIssue {
