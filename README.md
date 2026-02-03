@@ -15,12 +15,12 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 ## 🚀 Quick Start
 ### 1. Add the JitPack repository
 ```xml
-<repositories>
-    <repository>
-        <id>jitpack.io</id>
-        <url>[https://jitpack.io](https://jitpack.io)</url>
-    </repository>
-</repositories>
+	<pluginRepositories>
+		<pluginRepository>
+			<id>jitpack.io</id>
+			<url>https://jitpack.io</url>
+		</pluginRepository>
+	</pluginRepositories>
 ```
 ### 2. Add the Plugin
 ```xml
@@ -29,7 +29,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
         <plugin>
             <groupId>com.github.pagano-antonio</groupId>
             <artifactId>SpringSentinel</artifactId>
-            <version>v1.1.2</version> </plugin>
+            <version>v1.1.5</version> </plugin>
     </plugins>
 </build>
 ```
