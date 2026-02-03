@@ -13,31 +13,31 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 
 
 ## 🚀 Quick Start
-### 1. Add the JitPack repository
+### 21. Add the Plugin
 ```xml
-	<pluginRepositories>
-		<pluginRepository>
-			<id>jitpack.io</id>
-			<url>https://jitpack.io</url>
-		</pluginRepository>
-	</pluginRepositories>
-```
-### 2. Add the Plugin
-```xml
-<build>
-    <plugins>
-        <plugin>
-            <groupId>com.github.pagano-antonio</groupId>
-            <artifactId>SpringSentinel</artifactId>
-            <version>v1.1.5</version> </plugin>
-    </plugins>
-</build>
+<plugin>
+    <groupId>io.github.pagano-antonio</groupId>
+    <artifactId>SpringSentinel</artifactId>
+    <version>1.1.6</version>
+    <executions>
+        <execution>
+            <phase>verify</phase> 
+            <goals>
+                <goal>audit</goal>
+            </goals>
+        </execution>
+    </executions>
+    <configuration>
+        <maxDependencies>7</maxDependencies> 
+        <secretPattern>.*(password|secret|apikey).*</secretPattern> 
+    </configuration>
+</plugin> 
 ```
 
 ## Usage
 Run the audit directly from your terminal in the project root:
 ```bash
-mvn com.github.pagano-antonio:SpringSentinel:audit
+mvn io.github.pagano-antonio:SpringSentinel:1.1.6:audit
 ```
 
 ## Smart Reporting
