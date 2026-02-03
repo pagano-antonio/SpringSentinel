@@ -2,6 +2,8 @@ package com.beanspringboot;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+
+import org.apache.maven.model.Dependency;
 import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -168,4 +170,49 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Manual Instantiation of Spring Bean"), 
             "Il plugin dovrebbe segnalare l'odore di codice quando un Service viene creato con 'new'");
     }
+    
+ // --- TEST OLISTICI (POM & PROJECT) ---
+
+    @Test
+    void shouldDetectMissingSpringBootPluginInPom() {
+        // Simuliamo un progetto Maven senza plugin
+        org.apache.maven.project.MavenProject mockProject = new org.apache.maven.project.MavenProject();
+        
+        rules.runProjectChecks(mockProject);
+        
+        assertTrue(hasIssue("Missing Spring Boot Plugin"), 
+            "Dovrebbe segnalare la mancanza del plugin spring-boot-maven-plugin nel POM");
+    }
+
+    @Test
+    void shouldDetectOldSpringBootVersionInPom() {
+        org.apache.maven.project.MavenProject mockProject = new org.apache.maven.project.MavenProject();
+        
+        // Aggiungiamo una dipendenza obsoleta (Spring Boot 2.x)
+        Dependency oldBoot = new Dependency();
+        oldBoot.setArtifactId("spring-boot-starter");
+        oldBoot.setVersion("2.7.0");
+        mockProject.getDependencies().add(oldBoot);
+        
+        rules.runProjectChecks(mockProject);
+        
+        assertTrue(hasIssue("Old Spring Boot Version"), 
+            "Dovrebbe segnalare se la versione di Spring Boot è inferiore alla 3.x");
+    }
+
+    @Test
+    void shouldDetectExposedDataRestRepositories() {
+        org.apache.maven.project.MavenProject mockProject = new org.apache.maven.project.MavenProject();
+        
+        Dependency dataRest = new Dependency();
+        dataRest.setArtifactId("spring-boot-starter-data-rest");
+        mockProject.getDependencies().add(dataRest);
+        
+        rules.runProjectChecks(mockProject);
+        
+        assertTrue(hasIssue("Exposed Repositories (Data REST)"), 
+            "Dovrebbe avvisare sui rischi di esposizione automatica di Spring Data REST");
+    }
+
+  
 }

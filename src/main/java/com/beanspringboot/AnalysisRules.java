@@ -8,6 +8,9 @@ import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.stmt.ForEachStmt;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.project.MavenProject;
 
 import java.util.List;
 import java.util.Properties;
@@ -190,4 +193,49 @@ public class AnalysisRules {
         return field.isAnnotationPresent("Autowired") || field.isAnnotationPresent("Value") ||
                field.isAnnotationPresent("Resource") || field.isAnnotationPresent("Inject");
     }
+    
+ // --- ANALISI OLISTICA (POM.XML) ---
+
+    public void runProjectChecks(org.apache.maven.project.MavenProject project) {
+        if (project == null) return;
+        checkDependencyConflicts(project);
+        checkMissingProductionPlugins(project);
+    }
+
+    private void checkDependencyConflicts(org.apache.maven.project.MavenProject project) {
+        // Maven getDependencies() restituisce una List raw, usiamo Object e facciamo cast
+        for (Object depObj : project.getDependencies()) {
+            org.apache.maven.model.Dependency dep = (org.apache.maven.model.Dependency) depObj;
+            String artifactId = dep.getArtifactId();
+            
+            if ("spring-boot-starter-data-rest".equals(artifactId)) {
+                addIssue("pom.xml", 0, "Architecture", "Exposed Repositories (Data REST)", 
+                    "Spring Data REST espone automaticamente i repository. Verifica la sicurezza degli endpoint.");
+            }
+            
+            if ("spring-boot-starter".equals(artifactId) && dep.getVersion() != null) {
+                if (dep.getVersion().startsWith("2.")) {
+                    addIssue("pom.xml", 0, "Maintenance", "Old Spring Boot Version", 
+                        "Stai usando Spring Boot 2.x. Valuta l'aggiornamento a Spring Boot 3.x per il supporto nativo a Java 17.");
+                }
+            }
+        }
+    }
+
+    private void checkMissingProductionPlugins(org.apache.maven.project.MavenProject project) {
+        boolean hasSpringPlugin = false;
+        // Anche getBuildPlugins() restituisce una List raw
+        for (Object pluginObj : project.getBuildPlugins()) {
+            org.apache.maven.model.Plugin p = (org.apache.maven.model.Plugin) pluginObj;
+            if ("spring-boot-maven-plugin".equals(p.getArtifactId())) {
+                hasSpringPlugin = true;
+                break;
+            }
+        }
+        
+        if (!hasSpringPlugin) {
+            addIssue("pom.xml", 0, "Build", "Missing Spring Boot Plugin", 
+                "Aggiungi 'spring-boot-maven-plugin' per generare JAR eseguibili (repackage).");
+        }
+    } 
 }
