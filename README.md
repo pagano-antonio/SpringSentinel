@@ -37,7 +37,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 ## Usage
 Run the audit directly from your terminal in the project root:
 ```bash
-mvn io.github.pagano-antonio:SpringSentinel:1.1.6:audit
+mvn io.github.pagano-antonio:SpringSentinel:1.1.8:audit
 ```
 
 ## Smart Reporting
