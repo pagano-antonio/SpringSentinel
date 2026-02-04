@@ -20,7 +20,7 @@ public class StaticAnalysisCore {
     private final MavenProject project;
     private final List<AuditIssue> issues = new ArrayList<>();
 
-    // Parametri configurabili via Mojo (Feedback RepulsiveGoat3411)
+    // Configurable parameters via Mojo (RepulsiveGoat3411 Feedback)
     private int maxDependencies = 7;
     private String secretPattern = ".*(password|secret|apikey|pwd|token).*";
 
@@ -40,7 +40,7 @@ public class StaticAnalysisCore {
         StaticJavaParser.setConfiguration(config);
     }
 
-    // Setter per la configurazione dinamica dal Mojo
+    // Setters for dynamic configuration from Mojo
     public void setMaxDependencies(int maxDependencies) {
         this.maxDependencies = maxDependencies;
     }
@@ -55,26 +55,26 @@ public class StaticAnalysisCore {
 
         AnalysisRules rules = new AnalysisRules(this.issues::add);
 
-        // 1. Analisi Olistica del POM
+        // 1. Holistic POM Analysis
         if (project != null) {
-            log.info("Analisi olistica delle dipendenze Maven...");
+            log.info("Performing holistic Maven dependency analysis...");
             rules.runProjectChecks(project);
         }
 
-        // 2. Analisi delle Properties
+        // 2. Properties Analysis
         Properties props = loadProperties(resPath);
         executeAnalysisWithPropsOnly(props, this.issues);
 
-        // 3. Analisi del Codice Java con parametri flessibili
+        // 3. Java Code Analysis with flexible parameters
         if (Files.exists(javaPath)) {
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java")).forEach(path -> {
                     try {
                         CompilationUnit cu = StaticJavaParser.parse(path);
-                        // Passiamo i parametri configurabili alle regole
+                        // Passing configurable parameters to rules
                         rules.runAllChecks(cu, path.getFileName().toString(), props, maxDependencies, secretPattern);
                     } catch (IOException e) {
-                        log.error("Errore nel parsing del file: " + path);
+                        log.error("Error parsing file: " + path);
                     }
                 });
             }
@@ -91,23 +91,26 @@ public class StaticAnalysisCore {
 
     private void checkOSIV(Properties p, List<AuditIssue> issuesList) {
         if ("true".equals(p.getProperty("spring.jpa.open-in-view", "true"))) {
-            issuesList.add(new AuditIssue("application.properties", 0, "Architecture", "OSIV is Enabled", "Disabilita spring.jpa.open-in-view per evitare problemi di performance."));
+            issuesList.add(new AuditIssue("application.properties", 0, "Architecture", "OSIV is Enabled", 
+                "Disable 'spring.jpa.open-in-view' to avoid performance issues (anti-pattern)."));
         }
     }
 
     private void checkPropertiesSecrets(Properties p, List<AuditIssue> issuesList, String pattern) {
         p.forEach((key, value) -> {
             String k = key.toString().toLowerCase();
-            // Applichiamo la Regex flessibile anche alle properties
+            // Applying flexible Regex to properties
             if (k.matches(pattern) && !value.toString().matches("\\$\\{.*\\}")) {
-                issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", "Non scrivere segreti in chiaro. Usa le variabili d'ambiente."));
+                issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", 
+                    "Avoid plain-text secrets in properties. Use environment variables or a Secret Vault."));
             }
         });
     }
 
     private void checkCriticalProperties(Properties p, List<AuditIssue> issuesList) {
         if ("true".equals(p.getProperty("spring.h2.console.enabled"))) {
-            issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", "Disabilita la console H2 in produzione."));
+            issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", 
+                "Disable H2 console in production environments."));
         }
     }
 
@@ -115,7 +118,11 @@ public class StaticAnalysisCore {
         Properties props = new Properties();
         Path p = resPath.resolve("application.properties");
         if (Files.exists(p)) {
-            try (var is = Files.newInputStream(p)) { props.load(is); } catch (IOException e) { log.error("Errore caricamento properties"); }
+            try (var is = Files.newInputStream(p)) { 
+                props.load(is); 
+            } catch (IOException e) { 
+                log.error("Error loading application.properties"); 
+            }
         }
         return props;
     }

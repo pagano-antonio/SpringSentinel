@@ -32,7 +32,7 @@ public class AnalysisRules {
         issueConsumer.accept(new StaticAnalysisCore.AuditIssue(f, l, t, r, s));
     }
 
-    // --- ANALISI OLISTICA (POM.XML) ---
+    // --- HOLISTIC ANALYSIS (POM.XML) ---
 
     public void runProjectChecks(MavenProject project) {
         if (project == null) return;
@@ -47,13 +47,13 @@ public class AnalysisRules {
             
             if ("spring-boot-starter-data-rest".equals(artifactId)) {
                 addIssue("pom.xml", 0, "Architecture", "Exposed Repositories (Data REST)", 
-                    "Spring Data REST espone automaticamente i repository. Verifica la sicurezza degli endpoint.");
+                    "Spring Data REST automatically exposes repositories. Check the security of the endpoints.");
             }
             
             if ("spring-boot-starter".equals(artifactId) && dep.getVersion() != null) {
                 if (dep.getVersion().startsWith("2.")) {
                     addIssue("pom.xml", 0, "Maintenance", "Old Spring Boot Version", 
-                        "Stai usando Spring Boot 2.x. Valuta l'aggiornamento a Spring Boot 3.x.");
+                        "You are using Spring Boot 2.x. Consider upgrading to Spring Boot 3.x.");
                 }
             }
         }
@@ -70,11 +70,11 @@ public class AnalysisRules {
         }
         if (!hasSpringPlugin) {
             addIssue("pom.xml", 0, "Build", "Missing Spring Boot Plugin", 
-                "Aggiungi 'spring-boot-maven-plugin' per generare JAR eseguibili.");
+                "Add 'spring-boot-maven-plugin' to generate executable JARs.");
         }
     }
 
-    // --- ANALISI CODICE JAVA (CON PARAMETRI FLESSIBILI) ---
+    // --- JAVA CODE ANALYSIS (WITH FLEXIBLE PARAMETERS) ---
 
     public void runAllChecks(CompilationUnit cu, String fileName, Properties props, int maxDeps, String sPattern) {
         checkJPAEager(cu, fileName);
@@ -85,11 +85,11 @@ public class AnalysisRules {
         checkTransactionTimeout(cu, fileName);
         checkMissingRepositoryAnnotation(cu, fileName);
         checkAutowiredFieldInjection(cu, fileName);
-        checkHardcodedSecrets(cu, fileName, sPattern); // Regex dinamica
+        checkHardcodedSecrets(cu, fileName, sPattern);
         checkCrossOriginWildcard(cu, fileName);
         checkMissingResponseEntity(cu, fileName);
         checkBeanScopesAndThreadSafety(cu, fileName);
-        checkFatComponents(cu, fileName, maxDeps);    // Limite configurabile
+        checkFatComponents(cu, fileName, maxDeps);
         checkLazyInjectionSmell(cu, fileName);
         checkManualInstantiation(cu, fileName);
     }
@@ -97,11 +97,10 @@ public class AnalysisRules {
     protected void checkHardcodedSecrets(CompilationUnit cu, String f, String pattern) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             String name = field.getVariable(0).getNameAsString().toLowerCase();
-            // Risposta a RepulsiveGoat3411: Uso di Regex configurabile
             if (name.matches(pattern)) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Security", "Potential Hardcoded Secret", 
-                    "La variabile '" + name + "' corrisponde al pattern di sicurezza. Usa variabili d'ambiente.");
+                    "The variable '" + name + "' matches the security pattern. Use environment variables.");
             }
         });
     }
@@ -111,10 +110,9 @@ public class AnalysisRules {
             long injectedFields = clazz.findAll(FieldDeclaration.class).stream().filter(this::isInjectedField).count();
             int constructorParams = clazz.getConstructors().stream().mapToInt(c -> c.getParameters().size()).max().orElse(0);
             
-            // Risposta a RepulsiveGoat3411: Soglia flessibile
             if ((injectedFields + constructorParams) > maxDeps) {
                 addIssue(f, clazz.getBegin().map(p -> p.line).orElse(0), "Architecture", "Fat Component", 
-                    "Questa classe supera il limite di " + maxDeps + " dipendenze. Valuta un refactoring.");
+                    "This class exceeds the limit of " + maxDeps + " dependencies. Consider refactoring.");
             }
         });
     }
@@ -125,18 +123,20 @@ public class AnalysisRules {
             if (type.endsWith("Service") || type.endsWith("Repository") || type.endsWith("Component")) {
                 addIssue(f, newExpr.getBegin().map(p -> p.line).orElse(0), 
                     "Design Smell", "Manual Instantiation of Spring Bean", 
-                    "Evita 'new " + type + "()'. Usa la Dependency Injection.");
+                    "Avoid 'new " + type + "()'. Use Dependency Injection.");
             }
         });
     }
 
-    // --- ALTRI CONTROLLI ESISTENTI ---
+    // --- OTHER CHECKS ---
 
     protected void checkJPAEager(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             field.getAnnotations().forEach(anno -> {
                 if (anno.toString().contains("FetchType.EAGER")) {
-                    addIssue(f, field.getBegin().map(p -> p.line).orElse(0), "JPA Performance", "EAGER Fetching detected", "Passa al fetching LAZY.");
+                    addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
+                        "JPA Performance", "EAGER Fetching detected", 
+                        "Switch to LAZY fetching.");
                 }
             });
         });
@@ -145,72 +145,111 @@ public class AnalysisRules {
     protected void checkNPlusOne(CompilationUnit cu, String f) {
         cu.findAll(ForEachStmt.class).forEach(loop -> {
             loop.findAll(MethodCallExpr.class).forEach(call -> {
-                if (call.getNameAsString().startsWith("get") && (call.getNameAsString().endsWith("s") || call.getNameAsString().endsWith("List"))) {
-                    addIssue(f, call.getBegin().map(p -> p.line).orElse(0), "Database", "Potential N+1 Query", "Usa JOIN FETCH.");
+                if (call.getNameAsString().startsWith("get") && 
+                   (call.getNameAsString().endsWith("s") || call.getNameAsString().endsWith("List"))) {
+                    addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
+                        "Database", "Potential N+1 Query", 
+                        "Use JOIN FETCH.");
                 }
             });
         });
     }
 
     protected void checkBlockingTransactional(CompilationUnit cu, String f) {
-        cu.findAll(MethodDeclaration.class).stream().filter(m -> m.isAnnotationPresent("Transactional")).forEach(m -> {
-            m.findAll(MethodCallExpr.class).forEach(call -> {
-                if (BLOCKING_CALLS.stream().anyMatch(b -> call.toString().toLowerCase().contains(b))) {
-                    addIssue(f, call.getBegin().map(p -> p.line).orElse(0), "Concurrency", "Blocking call in Transaction", "Sposta l'I/O fuori da @Transactional.");
-                }
+        cu.findAll(MethodDeclaration.class).stream()
+            .filter(m -> m.isAnnotationPresent("Transactional"))
+            .forEach(m -> {
+                m.findAll(MethodCallExpr.class).forEach(call -> {
+                    if (BLOCKING_CALLS.stream().anyMatch(b -> call.toString().toLowerCase().contains(b))) {
+                        addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
+                            "Concurrency", "Blocking call in Transaction", 
+                            "Move I/O operations outside of @Transactional.");
+                    }
+                });
             });
-        });
     }
 
     protected void checkManualThreads(CompilationUnit cu, String f) {
         cu.findAll(ObjectCreationExpr.class).forEach(n -> {
             if (n.getTypeAsString().equals("Thread")) {
-                addIssue(f, n.getBegin().map(p -> p.line).orElse(0), "Resource Mgmt", "Manual Thread creation", "Usa @Async.");
+                addIssue(f, n.getBegin().map(p -> p.line).orElse(0), 
+                    "Resource Mgmt", "Manual Thread creation", 
+                    "Use @Async.");
             }
         });
     }
 
     protected void checkCacheTTL(CompilationUnit cu, String f, Properties p) {
-        if (cu.findAll(MethodDeclaration.class).stream().noneMatch(m -> m.isAnnotationPresent("Cacheable"))) return;
-        boolean hasTTL = p.keySet().stream().anyMatch(k -> k.toString().contains("ttl") || k.toString().contains("expire"));
-        if (!hasTTL) addIssue(f, 0, "Caching", "Cache missing TTL", "Definisci la scadenza in application.properties.");
+        if (cu.findAll(MethodDeclaration.class).stream()
+              .noneMatch(m -> m.isAnnotationPresent("Cacheable"))) return;
+
+        boolean hasTTL = p.keySet().stream()
+                .anyMatch(k -> k.toString().contains("ttl") || k.toString().contains("expire"));
+
+        if (!hasTTL) {
+            addIssue(f, 0, "Caching", "Cache missing TTL", 
+                "Define the expiration in application.properties.");
+        }
     }
 
     protected void checkTransactionTimeout(CompilationUnit cu, String f) {
         cu.findAll(MethodDeclaration.class).forEach(m -> {
             m.getAnnotationByName("Transactional").ifPresent(a -> {
-                if (!a.toString().contains("timeout")) addIssue(f, m.getBegin().map(p -> p.line).orElse(0), "Resilience", "Missing Transaction Timeout", "Aggiungi un timeout.");
+                if (!a.toString().contains("timeout")) {
+                    addIssue(f, m.getBegin().map(p -> p.line).orElse(0), 
+                        "Resilience", "Missing Transaction Timeout", 
+                        "Add a timeout.");
+                }
             });
         });
     }
 
     protected void checkMissingRepositoryAnnotation(CompilationUnit cu, String f) {
-        cu.findAll(ClassOrInterfaceDeclaration.class).stream().filter(c -> c.getNameAsString().endsWith("Repository")).forEach(c -> {
-            if (!c.isAnnotationPresent("Repository")) addIssue(f, c.getBegin().map(p -> p.line).orElse(0), "Best Practice", "Missing @Repository", "Aggiungi @Repository.");
-        });
+        cu.findAll(ClassOrInterfaceDeclaration.class).stream()
+            .filter(c -> c.getNameAsString().endsWith("Repository"))
+            .forEach(c -> {
+                if (!c.isAnnotationPresent("Repository")) {
+                    addIssue(f, c.getBegin().map(p -> p.line).orElse(0), 
+                        "Best Practice", "Missing @Repository", 
+                        "Add @Repository.");
+                }
+            });
     }
 
     protected void checkAutowiredFieldInjection(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
-            if (field.isAnnotationPresent("Autowired")) addIssue(f, field.getBegin().map(p -> p.line).orElse(0), "Architecture", "Field Injection", "Usa constructor injection.");
-        });
-    }
-
-    protected void checkCrossOriginWildcard(CompilationUnit cu, String f) {
-        cu.findAll(AnnotationExpr.class).stream().filter(a -> a.getNameAsString().equals("CrossOrigin")).forEach(a -> {
-            if (a.toString().equals("@CrossOrigin") || a.toString().contains("\"*\"")) {
-                addIssue(f, a.getBegin().map(p -> p.line).orElse(0), "Security", "Insecure @CrossOrigin policy", "Specifica origini esplicite.");
+            if (field.isAnnotationPresent("Autowired")) {
+                addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
+                    "Architecture", "Field Injection", 
+                    "Use constructor injection.");
             }
         });
     }
 
+    protected void checkCrossOriginWildcard(CompilationUnit cu, String f) {
+        cu.findAll(AnnotationExpr.class).stream()
+            .filter(a -> a.getNameAsString().equals("CrossOrigin"))
+            .forEach(a -> {
+                if (a.toString().equals("@CrossOrigin") || a.toString().contains("\"*\"")) {
+                    addIssue(f, a.getBegin().map(p -> p.line).orElse(0), 
+                        "Security", "Insecure @CrossOrigin policy", 
+                        "Specify explicit origins.");
+                }
+            });
+    }
+
     protected void checkMissingResponseEntity(CompilationUnit cu, String f) {
-        cu.findAll(ClassOrInterfaceDeclaration.class).stream().filter(c -> c.isAnnotationPresent("RestController")).forEach(controller -> {
-            controller.findAll(MethodDeclaration.class).stream()
-                    .filter(m -> m.getAnnotations().stream().anyMatch(a -> a.getNameAsString().endsWith("Mapping")))
+        cu.findAll(ClassOrInterfaceDeclaration.class).stream()
+            .filter(c -> c.isAnnotationPresent("RestController"))
+            .forEach(controller -> {
+                controller.findAll(MethodDeclaration.class).stream()
+                    .filter(m -> m.getAnnotations().stream()
+                        .anyMatch(a -> a.getNameAsString().endsWith("Mapping")))
                     .filter(m -> !m.getType().asString().startsWith("ResponseEntity"))
-                    .forEach(m -> addIssue(f, m.getBegin().map(p -> p.line).orElse(0), "Best Practice", "Missing ResponseEntity", "Usa ResponseEntity."));
-        });
+                    .forEach(m -> addIssue(f, m.getBegin().map(p -> p.line).orElse(0), 
+                        "Best Practice", "Missing ResponseEntity", 
+                        "Use ResponseEntity."));
+            });
     }
 
     protected void checkBeanScopesAndThreadSafety(CompilationUnit cu, String f) {
@@ -218,7 +257,9 @@ public class AnalysisRules {
             if (isSpringComponent(clazz)) {
                 clazz.findAll(FieldDeclaration.class).forEach(field -> {
                     if (!field.isFinal() && !isInjectedField(field) && !field.isStatic()) {
-                        addIssue(f, field.getBegin().map(p -> p.line).orElse(0), "Thread Safety", "Mutable state in Singleton", "Rendi i campi final.");
+                        addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
+                            "Thread Safety", "Mutable state in Singleton", 
+                            "Make the fields final.");
                     }
                 });
             }
@@ -228,18 +269,24 @@ public class AnalysisRules {
     protected void checkLazyInjectionSmell(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             if (field.isAnnotationPresent("Lazy") && field.isAnnotationPresent("Autowired")) {
-                addIssue(f, field.getBegin().map(p -> p.line).orElse(0), "Design Smell", "Lazy Injection", "Evita @Lazy per nascondere dipendenze circolari.");
+                addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
+                    "Design Smell", "Lazy Injection", 
+                    "Avoid using @Lazy to hide circular dependencies.");
             }
         });
     }
 
     private boolean isSpringComponent(ClassOrInterfaceDeclaration clazz) {
-        return clazz.isAnnotationPresent("Service") || clazz.isAnnotationPresent("RestController") ||
-               clazz.isAnnotationPresent("Component") || clazz.isAnnotationPresent("Repository");
+        return clazz.isAnnotationPresent("Service") || 
+               clazz.isAnnotationPresent("RestController") ||
+               clazz.isAnnotationPresent("Component") || 
+               clazz.isAnnotationPresent("Repository");
     }
 
     private boolean isInjectedField(FieldDeclaration field) {
-        return field.isAnnotationPresent("Autowired") || field.isAnnotationPresent("Value") ||
-               field.isAnnotationPresent("Resource") || field.isAnnotationPresent("Inject");
+        return field.isAnnotationPresent("Autowired") || 
+               field.isAnnotationPresent("Value") ||
+               field.isAnnotationPresent("Resource") || 
+               field.isAnnotationPresent("Inject");
     }
 }
