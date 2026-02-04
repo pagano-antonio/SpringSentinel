@@ -18,7 +18,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.1.6</version>
+    <version>1.1.8</version>
     <executions>
         <execution>
             <phase>verify</phase> 
