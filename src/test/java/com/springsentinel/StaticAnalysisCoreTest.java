@@ -32,7 +32,27 @@ class StaticAnalysisCoreTest {
         core = new StaticAnalysisCore(new SystemStreamLog());
     }
 
-    // --- SECURITY & SECRETS (3 TEST) ---
+    // --- REST DESIGN (NEW FOR 1.1.7 - 3 TESTS) ---
+
+    @Test
+    void shouldDetectNonKebabCaseUrl() {
+        executeTest("@RestController class Test { @GetMapping(\"/userProfile\") public void get() {} }");
+        assertTrue(hasIssue("Non-standard URL naming"), "Should detect camelCase in URL");
+    }
+
+    @Test
+    void shouldDetectMissingApiVersioning() {
+        executeTest("@RestController class Test { @GetMapping(\"/users\") public void get() {} }");
+        assertTrue(hasIssue("Missing API Versioning"), "Should suggest /v1 prefix");
+    }
+
+    @Test
+    void shouldDetectSingularResourceName() {
+        executeTest("@RestController class Test { @GetMapping(\"/v1/user\") public void get() {} }");
+        assertTrue(hasIssue("Singular Resource Name"), "Should suggest plural /users");
+    }
+
+    // --- SECURITY & SECRETS (3 TESTS) ---
 
     @Test
     void shouldDetectHardcodedSecrets() {
@@ -55,7 +75,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Hardcoded Secret"));
     }
 
-    // --- ARCHITECTURE & DESIGN (5 TEST) ---
+    // --- ARCHITECTURE & DESIGN (5 TESTS) ---
 
     @Test
     void shouldDetectFatComponent() {
@@ -88,7 +108,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Field Injection"));
     }
 
-    // --- OLISTICI: POM & PROJECT (3 TEST) ---
+    // --- HOLISTIC: POM & PROJECT (3 TESTS) ---
 
     @Test
     void shouldDetectMissingSpringBootPluginInPom() {
@@ -117,7 +137,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Exposed Repositories (Data REST)"));
     }
 
-    // --- PERFORMANCE & JPA (4 TEST) ---
+    // --- PERFORMANCE & JPA (4 TESTS) ---
 
     @Test
     void shouldDetectNPlusOne() {
@@ -145,7 +165,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Blocking call in Transaction"));
     }
 
-    // --- BEST PRACTICES & CONCURRENCY (4 TEST) ---
+    // --- BEST PRACTICES & CONCURRENCY (4 TESTS) ---
 
     @Test
     void shouldDetectMissingRepositoryAnnotation() {
@@ -155,7 +175,7 @@ class StaticAnalysisCoreTest {
 
     @Test
     void shouldDetectMissingResponseEntityInController() {
-        executeTest("@RestController class Test { @GetMapping(\"/x\") public String m() { return \"\"; } }");
+        executeTest("@RestController class Test { @GetMapping(\"/v1/users\") public String m() { return \"\"; } }");
         assertTrue(hasIssue("Missing ResponseEntity"));
     }
 

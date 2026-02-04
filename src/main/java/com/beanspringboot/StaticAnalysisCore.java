@@ -15,12 +15,16 @@ import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
 
+/**
+ * Core engine for SpringSentinel static analysis.
+ * Orchestrates POM, Properties, and Java Source scans.
+ */
 public class StaticAnalysisCore {
     private final Log log;
     private final MavenProject project;
     private final List<AuditIssue> issues = new ArrayList<>();
 
-    // Configurable parameters via Mojo (RepulsiveGoat3411 Feedback)
+    // Configurable parameters from Maven Plugin configuration
     private int maxDependencies = 7;
     private String secretPattern = ".*(password|secret|apikey|pwd|token).*";
 
@@ -40,7 +44,6 @@ public class StaticAnalysisCore {
         StaticJavaParser.setConfiguration(config);
     }
 
-    // Setters for dynamic configuration from Mojo
     public void setMaxDependencies(int maxDependencies) {
         this.maxDependencies = maxDependencies;
     }
@@ -49,15 +52,18 @@ public class StaticAnalysisCore {
         this.secretPattern = secretPattern;
     }
 
+    /**
+     * Entry point for the analysis process.
+     */
     public void executeAnalysis(File baseDir, File outputDir) throws Exception {
         Path javaPath = baseDir.toPath().resolve("src/main/java");
         Path resPath = baseDir.toPath().resolve("src/main/resources");
 
         AnalysisRules rules = new AnalysisRules(this.issues::add);
 
-        // 1. Holistic POM Analysis
+        // 1. Holistic POM/Project Analysis
         if (project != null) {
-            log.info("Performing holistic Maven dependency analysis...");
+            log.info("Starting holistic project analysis (POM and dependencies)...");
             rules.runProjectChecks(project);
         }
 
@@ -65,21 +71,23 @@ public class StaticAnalysisCore {
         Properties props = loadProperties(resPath);
         executeAnalysisWithPropsOnly(props, this.issues);
 
-        // 3. Java Code Analysis with flexible parameters
+        // 3. Java Source Code Analysis
         if (Files.exists(javaPath)) {
+            log.info("Scanning Java source files for best practices and security...");
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java")).forEach(path -> {
                     try {
                         CompilationUnit cu = StaticJavaParser.parse(path);
-                        // Passing configurable parameters to rules
+                        // Run all rules including new REST and architectural checks
                         rules.runAllChecks(cu, path.getFileName().toString(), props, maxDependencies, secretPattern);
                     } catch (IOException e) {
-                        log.error("Error parsing file: " + path);
+                        log.error("Failed to parse Java file: " + path);
                     }
                 });
             }
         }
 
+        // 4. Report Generation
         new ReportGenerator().generateReports(outputDir, issues);
     }
 
@@ -92,17 +100,16 @@ public class StaticAnalysisCore {
     private void checkOSIV(Properties p, List<AuditIssue> issuesList) {
         if ("true".equals(p.getProperty("spring.jpa.open-in-view", "true"))) {
             issuesList.add(new AuditIssue("application.properties", 0, "Architecture", "OSIV is Enabled", 
-                "Disable 'spring.jpa.open-in-view' to avoid performance issues (anti-pattern)."));
+                "Disable 'spring.jpa.open-in-view' to prevent the Open Session In View anti-pattern."));
         }
     }
 
     private void checkPropertiesSecrets(Properties p, List<AuditIssue> issuesList, String pattern) {
         p.forEach((key, value) -> {
             String k = key.toString().toLowerCase();
-            // Applying flexible Regex to properties
             if (k.matches(pattern) && !value.toString().matches("\\$\\{.*\\}")) {
                 issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", 
-                    "Avoid plain-text secrets in properties. Use environment variables or a Secret Vault."));
+                    "Sensitive data found in properties. Move to environment variables or a secure Vault."));
             }
         });
     }
@@ -110,7 +117,7 @@ public class StaticAnalysisCore {
     private void checkCriticalProperties(Properties p, List<AuditIssue> issuesList) {
         if ("true".equals(p.getProperty("spring.h2.console.enabled"))) {
             issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", 
-                "Disable H2 console in production environments."));
+                "H2 Console is active. Ensure it is disabled in production environments."));
         }
     }
 
@@ -121,12 +128,15 @@ public class StaticAnalysisCore {
             try (var is = Files.newInputStream(p)) { 
                 props.load(is); 
             } catch (IOException e) { 
-                log.error("Error loading application.properties"); 
+                log.error("Could not load application.properties"); 
             }
         }
         return props;
     }
 
+    /**
+     * Data class representing a found issue.
+     */
     public static class AuditIssue {
         public final String file, type, reason, suggestion;
         public final int line;

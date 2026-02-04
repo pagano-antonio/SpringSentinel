@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.Properties;
 import java.util.function.Consumer;
 
+/**
+ * Core analysis logic for Spring Boot projects.
+ * Now includes RESTful naming conventions and holistic project checks.
+ */
 public class AnalysisRules {
 
     private static final List<String> BLOCKING_CALLS = List.of(
@@ -47,13 +51,13 @@ public class AnalysisRules {
             
             if ("spring-boot-starter-data-rest".equals(artifactId)) {
                 addIssue("pom.xml", 0, "Architecture", "Exposed Repositories (Data REST)", 
-                    "Spring Data REST automatically exposes repositories. Check the security of the endpoints.");
+                    "Spring Data REST automatically exposes all repositories. Ensure endpoints are properly secured.");
             }
             
             if ("spring-boot-starter".equals(artifactId) && dep.getVersion() != null) {
                 if (dep.getVersion().startsWith("2.")) {
                     addIssue("pom.xml", 0, "Maintenance", "Old Spring Boot Version", 
-                        "You are using Spring Boot 2.x. Consider upgrading to Spring Boot 3.x.");
+                        "Project is using Spring Boot 2.x. Upgrade to 3.x for Jakarta EE compatibility and security updates.");
                 }
             }
         }
@@ -70,11 +74,11 @@ public class AnalysisRules {
         }
         if (!hasSpringPlugin) {
             addIssue("pom.xml", 0, "Build", "Missing Spring Boot Plugin", 
-                "Add 'spring-boot-maven-plugin' to generate executable JARs.");
+                "Missing 'spring-boot-maven-plugin'. This is required to package an executable JAR/WAR.");
         }
     }
 
-    // --- JAVA CODE ANALYSIS (WITH FLEXIBLE PARAMETERS) ---
+    // --- JAVA CODE ANALYSIS ---
 
     public void runAllChecks(CompilationUnit cu, String fileName, Properties props, int maxDeps, String sPattern) {
         checkJPAEager(cu, fileName);
@@ -92,6 +96,49 @@ public class AnalysisRules {
         checkFatComponents(cu, fileName, maxDeps);
         checkLazyInjectionSmell(cu, fileName);
         checkManualInstantiation(cu, fileName);
+        checkRestfulNaming(cu, fileName); // New for 1.1.7
+    }
+
+    protected void checkRestfulNaming(CompilationUnit cu, String f) {
+        cu.findAll(AnnotationExpr.class).forEach(anno -> {
+            String name = anno.getNameAsString();
+            if (name.endsWith("Mapping")) {
+                anno.getChildNodes().forEach(node -> {
+                    String url = node.toString().replace("\"", "");
+                    if (url.startsWith("/")) {
+                        // Usiamo "REST Design (Warning)" come tipo per distinguerlo dai bug strutturali
+                        String type = "REST Design (Warning)";
+
+                        // 1. Kebab-case check
+                        if (url.matches(".*[A-Z].*") || url.contains("_")) {
+                            addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
+                                type, "Non-standard URL naming", 
+                                "URL '" + url + "' should use kebab-case (lowercase with hyphens).");
+                        }
+                        // 2. Versioning check
+                        if (!url.matches(".*/v[0-9]+.*") && !url.equals("/")) {
+                            addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
+                                type, "Missing API Versioning", 
+                                "URL '" + url + "' is missing a version prefix (e.g., /v1).");
+                        }
+                        // 3. Pluralization check
+                        if (isSingular(url)) {
+                            addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
+                                type, "Singular Resource Name", 
+                                "Resource '" + url + "' should be plural (e.g., /users).");
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private boolean isSingular(String url) {
+        String[] parts = url.split("/");
+        if (parts.length == 0) return false;
+        String lastPart = parts[parts.length - 1];
+        // Skip if it's a dynamic path parameter or already plural
+        return !lastPart.isEmpty() && !lastPart.endsWith("s") && !lastPart.contains("{");
     }
 
     protected void checkHardcodedSecrets(CompilationUnit cu, String f, String pattern) {
@@ -100,7 +147,7 @@ public class AnalysisRules {
             if (name.matches(pattern)) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Security", "Potential Hardcoded Secret", 
-                    "The variable '" + name + "' matches the security pattern. Use environment variables.");
+                    "Variable '" + name + "' matches the security pattern. Move sensitive data to environment variables.");
             }
         });
     }
@@ -112,7 +159,7 @@ public class AnalysisRules {
             
             if ((injectedFields + constructorParams) > maxDeps) {
                 addIssue(f, clazz.getBegin().map(p -> p.line).orElse(0), "Architecture", "Fat Component", 
-                    "This class exceeds the limit of " + maxDeps + " dependencies. Consider refactoring.");
+                    "Class has " + (injectedFields + constructorParams) + " dependencies, exceeding the limit of " + maxDeps + ". Refactor into smaller services.");
             }
         });
     }
@@ -123,22 +170,18 @@ public class AnalysisRules {
             if (type.endsWith("Service") || type.endsWith("Repository") || type.endsWith("Component")) {
                 addIssue(f, newExpr.getBegin().map(p -> p.line).orElse(0), 
                     "Design Smell", "Manual Instantiation of Spring Bean", 
-                    "Avoid 'new " + type + "()'. Use Dependency Injection.");
+                    "Avoid 'new " + type + "()'. Let Spring manage bean lifecycle via Dependency Injection.");
             }
         });
     }
 
-    // --- OTHER CHECKS ---
-
     protected void checkJPAEager(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
-            field.getAnnotations().forEach(anno -> {
-                if (anno.toString().contains("FetchType.EAGER")) {
-                    addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
-                        "JPA Performance", "EAGER Fetching detected", 
-                        "Switch to LAZY fetching.");
-                }
-            });
+            if (field.toString().contains("FetchType.EAGER")) {
+                addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
+                    "Performance", "EAGER Fetching detected", 
+                    "JPA EAGER fetching can cause overhead. Switch to LAZY and use 'join fetch' where needed.");
+            }
         });
     }
 
@@ -149,7 +192,7 @@ public class AnalysisRules {
                    (call.getNameAsString().endsWith("s") || call.getNameAsString().endsWith("List"))) {
                     addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
                         "Database", "Potential N+1 Query", 
-                        "Use JOIN FETCH.");
+                        "Avoid calling collection getters inside loops. Use Eager Loading or JOIN FETCH.");
                 }
             });
         });
@@ -163,7 +206,7 @@ public class AnalysisRules {
                     if (BLOCKING_CALLS.stream().anyMatch(b -> call.toString().toLowerCase().contains(b))) {
                         addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
                             "Concurrency", "Blocking call in Transaction", 
-                            "Move I/O operations outside of @Transactional.");
+                            "Network/IO calls inside @Transactional can lead to connection pool exhaustion.");
                     }
                 });
             });
@@ -171,24 +214,20 @@ public class AnalysisRules {
 
     protected void checkManualThreads(CompilationUnit cu, String f) {
         cu.findAll(ObjectCreationExpr.class).forEach(n -> {
-            if (n.getTypeAsString().equals("Thread")) {
+            if (n.getTypeAsString().equals("Thread") || n.getTypeAsString().equals("ExecutorService")) {
                 addIssue(f, n.getBegin().map(p -> p.line).orElse(0), 
                     "Resource Mgmt", "Manual Thread creation", 
-                    "Use @Async.");
+                    "Manual threading is discouraged in Spring. Use @Async or a managed TaskExecutor.");
             }
         });
     }
 
     protected void checkCacheTTL(CompilationUnit cu, String f, Properties p) {
-        if (cu.findAll(MethodDeclaration.class).stream()
-              .noneMatch(m -> m.isAnnotationPresent("Cacheable"))) return;
-
-        boolean hasTTL = p.keySet().stream()
-                .anyMatch(k -> k.toString().contains("ttl") || k.toString().contains("expire"));
-
+        if (cu.findAll(MethodDeclaration.class).stream().noneMatch(m -> m.isAnnotationPresent("Cacheable"))) return;
+        boolean hasTTL = p.keySet().stream().anyMatch(k -> k.toString().contains("ttl") || k.toString().contains("expire"));
         if (!hasTTL) {
             addIssue(f, 0, "Caching", "Cache missing TTL", 
-                "Define the expiration in application.properties.");
+                "Define a Time-To-Live (TTL) for caches in application.properties to avoid stale data.");
         }
     }
 
@@ -198,7 +237,7 @@ public class AnalysisRules {
                 if (!a.toString().contains("timeout")) {
                     addIssue(f, m.getBegin().map(p -> p.line).orElse(0), 
                         "Resilience", "Missing Transaction Timeout", 
-                        "Add a timeout.");
+                        "Explicitly define a timeout for long-running transactions.");
                 }
             });
         });
@@ -211,17 +250,17 @@ public class AnalysisRules {
                 if (!c.isAnnotationPresent("Repository")) {
                     addIssue(f, c.getBegin().map(p -> p.line).orElse(0), 
                         "Best Practice", "Missing @Repository", 
-                        "Add @Repository.");
+                        "Add @Repository to your data access interfaces for proper exception translation.");
                 }
             });
     }
 
     protected void checkAutowiredFieldInjection(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
-            if (field.isAnnotationPresent("Autowired")) {
+            if (field.isAnnotationPresent("Autowired") || field.isAnnotationPresent("Inject")) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Architecture", "Field Injection", 
-                    "Use constructor injection.");
+                    "Field injection is an anti-pattern. Use constructor injection for better testability.");
             }
         });
     }
@@ -233,7 +272,7 @@ public class AnalysisRules {
                 if (a.toString().equals("@CrossOrigin") || a.toString().contains("\"*\"")) {
                     addIssue(f, a.getBegin().map(p -> p.line).orElse(0), 
                         "Security", "Insecure @CrossOrigin policy", 
-                        "Specify explicit origins.");
+                        "CORS wildcard '*' is insecure. Specify allowed domains explicitly.");
                 }
             });
     }
@@ -243,12 +282,11 @@ public class AnalysisRules {
             .filter(c -> c.isAnnotationPresent("RestController"))
             .forEach(controller -> {
                 controller.findAll(MethodDeclaration.class).stream()
-                    .filter(m -> m.getAnnotations().stream()
-                        .anyMatch(a -> a.getNameAsString().endsWith("Mapping")))
+                    .filter(m -> m.getAnnotations().stream().anyMatch(a -> a.getNameAsString().endsWith("Mapping")))
                     .filter(m -> !m.getType().asString().startsWith("ResponseEntity"))
                     .forEach(m -> addIssue(f, m.getBegin().map(p -> p.line).orElse(0), 
                         "Best Practice", "Missing ResponseEntity", 
-                        "Use ResponseEntity."));
+                        "Return ResponseEntity<T> in RestControllers to handle HTTP status codes properly."));
             });
     }
 
@@ -259,7 +297,7 @@ public class AnalysisRules {
                     if (!field.isFinal() && !isInjectedField(field) && !field.isStatic()) {
                         addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                             "Thread Safety", "Mutable state in Singleton", 
-                            "Make the fields final.");
+                            "Spring Beans are Singletons by default. Avoid mutable fields; use local variables or make them final.");
                     }
                 });
             }
@@ -271,7 +309,7 @@ public class AnalysisRules {
             if (field.isAnnotationPresent("Lazy") && field.isAnnotationPresent("Autowired")) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Design Smell", "Lazy Injection", 
-                    "Avoid using @Lazy to hide circular dependencies.");
+                    "@Lazy injection is often a workaround for circular dependencies. Refactor the architecture.");
             }
         });
     }
