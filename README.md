@@ -18,7 +18,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.1.8</version>
+    <version>1.1.9</version>
     <executions>
         <execution>
             <phase>verify</phase> 
@@ -37,7 +37,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 ## Usage
 Run the audit directly from your terminal in the project root:
 ```bash
-mvn io.github.pagano-antonio:SpringSentinel:1.1.8:audit
+mvn spring-sentinel:audit
 ```
 
 ## Smart Reporting
