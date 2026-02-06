@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 /**
  * Core analysis logic for Spring Boot projects.
- * Now includes RESTful naming conventions and holistic project checks.
+ * v1.2.0: Fixed Issue #1 (Lombok @FieldDefaults) and stabilized REST naming checks.
  */
 public class AnalysisRules {
 
@@ -96,7 +96,7 @@ public class AnalysisRules {
         checkFatComponents(cu, fileName, maxDeps);
         checkLazyInjectionSmell(cu, fileName);
         checkManualInstantiation(cu, fileName);
-        checkRestfulNaming(cu, fileName); // New for 1.1.7
+        checkRestfulNaming(cu, fileName); 
     }
 
     protected void checkRestfulNaming(CompilationUnit cu, String f) {
@@ -106,22 +106,18 @@ public class AnalysisRules {
                 anno.getChildNodes().forEach(node -> {
                     String url = node.toString().replace("\"", "");
                     if (url.startsWith("/")) {
-                        // Usiamo "REST Design (Warning)" come tipo per distinguerlo dai bug strutturali
                         String type = "REST Design (Warning)";
 
-                        // 1. Kebab-case check
                         if (url.matches(".*[A-Z].*") || url.contains("_")) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Non-standard URL naming", 
                                 "URL '" + url + "' should use kebab-case (lowercase with hyphens).");
                         }
-                        // 2. Versioning check
                         if (!url.matches(".*/v[0-9]+.*") && !url.equals("/")) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Missing API Versioning", 
                                 "URL '" + url + "' is missing a version prefix (e.g., /v1).");
                         }
-                        // 3. Pluralization check
                         if (isSingular(url)) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Singular Resource Name", 
@@ -137,7 +133,6 @@ public class AnalysisRules {
         String[] parts = url.split("/");
         if (parts.length == 0) return false;
         String lastPart = parts[parts.length - 1];
-        // Skip if it's a dynamic path parameter or already plural
         return !lastPart.isEmpty() && !lastPart.endsWith("s") && !lastPart.contains("{");
     }
 
@@ -290,20 +285,35 @@ public class AnalysisRules {
             });
     }
 
+    /**
+     * Updated for Issue #1: Now recognizes Lombok @FieldDefaults(makeFinal = true) 
+     * to avoid false positives on thread safety.
+     */
+    /**
+     * Analizza la thread-safety dei Bean Singleton di Spring.
+     * v1.2.0: Riconosce Lombok @FieldDefaults(makeFinal = true) per evitare falsi positivi.
+     */
     protected void checkBeanScopesAndThreadSafety(CompilationUnit cu, String f) {
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
             if (isSpringComponent(clazz)) {
-                clazz.findAll(FieldDeclaration.class).forEach(field -> {
-                    if (!field.isFinal() && !isInjectedField(field) && !field.isStatic()) {
-                        addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
-                            "Thread Safety", "Mutable state in Singleton", 
-                            "Spring Beans are Singletons by default. Avoid mutable fields; use local variables or make them final.");
-                    }
-                });
+                // Verifica se Lombok rende i campi final automaticamente
+                boolean lombokMakesFinal = clazz.getAnnotations().stream()
+                        .anyMatch(a -> a.getNameAsString().equals("FieldDefaults") && 
+                                       a.toString().replace(" ", "").contains("makeFinal=true"));
+
+                if (!lombokMakesFinal) {
+                    clazz.findAll(FieldDeclaration.class).forEach(field -> {
+                        // Se il campo non è final, non è iniettato e non è statico, è un rischio di stato mutabile
+                        if (!field.isFinal() && !isInjectedField(field) && !field.isStatic()) {
+                            addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
+                                "Thread Safety", "Mutable state in Singleton", 
+                                "Spring Beans are Singletons. Avoid mutable fields or use Lombok @FieldDefaults(makeFinal=true).");
+                        }
+                    });
+                }
             }
         });
     }
-
     protected void checkLazyInjectionSmell(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             if (field.isAnnotationPresent("Lazy") && field.isAnnotationPresent("Autowired")) {
@@ -316,15 +326,15 @@ public class AnalysisRules {
 
     private boolean isSpringComponent(ClassOrInterfaceDeclaration clazz) {
         return clazz.isAnnotationPresent("Service") || 
-               clazz.isAnnotationPresent("RestController") ||
-               clazz.isAnnotationPresent("Component") || 
-               clazz.isAnnotationPresent("Repository");
+                clazz.isAnnotationPresent("RestController") ||
+                clazz.isAnnotationPresent("Component") || 
+                clazz.isAnnotationPresent("Repository");
     }
 
     private boolean isInjectedField(FieldDeclaration field) {
         return field.isAnnotationPresent("Autowired") || 
-               field.isAnnotationPresent("Value") ||
-               field.isAnnotationPresent("Resource") || 
-               field.isAnnotationPresent("Inject");
+                field.isAnnotationPresent("Value") ||
+                field.isAnnotationPresent("Resource") || 
+                field.isAnnotationPresent("Inject");
     }
 }

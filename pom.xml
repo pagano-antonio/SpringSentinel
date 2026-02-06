@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.github.pagano-antonio</groupId>
 	<artifactId>SpringSentinel</artifactId>
-	<version>1.1.8</version>
+	<version>1.1.9</version>
 	<packaging>maven-plugin</packaging>
 	<name>SpringSentinel Maven Plugin</name>
 	<description>Static analysis plugin for Spring Boot performance audit</description>
@@ -95,17 +95,6 @@
 					<skipErrorNoDescriptorsFound>true</skipErrorNoDescriptorsFound>
 				</configuration>
 			</plugin>
-<!--			<plugin>-->
-<!--				<groupId>org.sonatype.plugins</groupId>-->
-<!--				<artifactId>nexus-staging-maven-plugin</artifactId>-->
-<!--				<version>1.6.13</version>-->
-<!--				<extensions>true</extensions>-->
-<!--				<configuration>-->
-<!--					<serverId>ossrh</serverId>-->
-<!--					<nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>-->
-<!--					<autoReleaseAfterClose>true</autoReleaseAfterClose>-->
-<!--				</configuration>-->
-<!--			</plugin>-->
 
 <plugin>
   <groupId>org.sonatype.central</groupId>

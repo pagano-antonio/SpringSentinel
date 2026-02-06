@@ -55,7 +55,6 @@ public class SentinelMojo extends AbstractMojo {
 
             // Eseguiamo l'analisi
             core.executeAnalysis(baseDir, outputDir);
-
             getLog().info("✅ Analisi completata con successo. Report generato in: " + outputDir);
             
         } catch (Exception e) {

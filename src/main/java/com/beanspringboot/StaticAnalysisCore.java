@@ -17,14 +17,13 @@ import java.util.stream.Stream;
 
 /**
  * Core engine for SpringSentinel static analysis.
- * Orchestrates POM, Properties, and Java Source scans.
+ * v1.2.0: Robust Java 21+ support for unnamed variables and modern syntax.
  */
 public class StaticAnalysisCore {
     private final Log log;
     private final MavenProject project;
     private final List<AuditIssue> issues = new ArrayList<>();
 
-    // Configurable parameters from Maven Plugin configuration
     private int maxDependencies = 7;
     private String secretPattern = ".*(password|secret|apikey|pwd|token).*";
 
@@ -38,9 +37,21 @@ public class StaticAnalysisCore {
         this(log, null);
     }
 
+    /**
+     * Configures the parser level. 
+     * Uses dynamic resolution to avoid compilation errors if JAVA_21 is not yet in the classpath.
+     */
     private void configureJavaParser() {
         ParserConfiguration config = new ParserConfiguration();
-        config.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
+        try {
+            // Tentativo di caricare JAVA_21 per supportare le unnamed variables (_)
+            config.setLanguageLevel(ParserConfiguration.LanguageLevel.valueOf("JAVA_21"));
+            log.info("JavaParser configured for Language Level: JAVA_21");
+        } catch (IllegalArgumentException e) {
+            // Fallback a JAVA_17 se la costante non esiste nella versione corrente della lib
+            config.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
+            log.warn("JAVA_21 not found in JavaParser constants. Falling back to JAVA_17.");
+        }
         StaticJavaParser.setConfiguration(config);
     }
 
@@ -52,18 +63,15 @@ public class StaticAnalysisCore {
         this.secretPattern = secretPattern;
     }
 
-    /**
-     * Entry point for the analysis process.
-     */
     public void executeAnalysis(File baseDir, File outputDir) throws Exception {
         Path javaPath = baseDir.toPath().resolve("src/main/java");
         Path resPath = baseDir.toPath().resolve("src/main/resources");
 
         AnalysisRules rules = new AnalysisRules(this.issues::add);
 
-        // 1. Holistic POM/Project Analysis
+        // 1. Holistic POM Analysis
         if (project != null) {
-            log.info("Starting holistic project analysis (POM and dependencies)...");
+            log.info("Starting holistic project analysis...");
             rules.runProjectChecks(project);
         }
 
@@ -73,21 +81,21 @@ public class StaticAnalysisCore {
 
         // 3. Java Source Code Analysis
         if (Files.exists(javaPath)) {
-            log.info("Scanning Java source files for best practices and security...");
+            log.info("Scanning Java source files...");
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java")).forEach(path -> {
                     try {
                         CompilationUnit cu = StaticJavaParser.parse(path);
-                        // Run all rules including new REST and architectural checks
                         rules.runAllChecks(cu, path.getFileName().toString(), props, maxDependencies, secretPattern);
-                    } catch (IOException e) {
-                        log.error("Failed to parse Java file: " + path);
+                    } catch (Exception e) {
+                        // Risolve la Issue #2: se un file fallisce (es. Java 25), il plugin continua
+                        log.error("Parsing failed for " + path.getFileName() + ": " + e.getMessage());
                     }
                 });
             }
         }
 
-        // 4. Report Generation
+        // 4. Multi-format Report Generation (HTML, JSON, SARIF)
         new ReportGenerator().generateReports(outputDir, issues);
     }
 
@@ -109,7 +117,7 @@ public class StaticAnalysisCore {
             String k = key.toString().toLowerCase();
             if (k.matches(pattern) && !value.toString().matches("\\$\\{.*\\}")) {
                 issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", 
-                    "Sensitive data found in properties. Move to environment variables or a secure Vault."));
+                    "Sensitive data found in properties. Move to environment variables."));
             }
         });
     }
@@ -117,7 +125,7 @@ public class StaticAnalysisCore {
     private void checkCriticalProperties(Properties p, List<AuditIssue> issuesList) {
         if ("true".equals(p.getProperty("spring.h2.console.enabled"))) {
             issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", 
-                "H2 Console is active. Ensure it is disabled in production environments."));
+                "H2 Console is active. Disable it in production."));
         }
     }
 
@@ -134,9 +142,6 @@ public class StaticAnalysisCore {
         return props;
     }
 
-    /**
-     * Data class representing a found issue.
-     */
     public static class AuditIssue {
         public final String file, type, reason, suggestion;
         public final int line;
