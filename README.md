@@ -70,7 +70,7 @@ Build Tool: Maven 3.6.0+.
 ## License
 Distributed under the Apache License 2.0.
 
-##Audit Rules & Analyzed Cases
+## Audit Rules & Analyzed Cases
 
 ⚡ Performance & Database
 JPA Eager Fetching Detection: Scans for FetchType.EAGER in JPA entities to prevent unnecessary memory overhead and performance degradation.
@@ -100,3 +100,30 @@ Missing ResponseEntity: Encourages returning ResponseEntity<T> in Controllers to
 Spring Boot Version Audit: Warns if the project is still using Spring Boot 2.x and recommends upgrading to 3.x for Jakarta EE compatibility.
 Missing Production Plugins: Checks for the spring-boot-maven-plugin, which is required for packaging executable artifacts.
 Repository Best Practices: Ensures that data access interfaces are correctly annotated with @Repository for proper exception translation.
+
+
+## Configuration 
+ConfigurationSpringSentinel is designed to be flexible. You can customize the audit thresholds and security patterns by adding a <configuration> block to the plugin declaration in your pom.xml.Available ParametersParameterDefault ValueDescriptionmaxDependencies7The maximum number of allowed dependencies (constructor params + injected fields) before a "Fat Component" warning is triggered.secretPattern.*(password|secret|apikey|pwd|token).*A regular expression used to scan field names and properties for potential hardcoded sensitive data.
+
+Example Usage
+```xml
+<plugin>
+    <groupId>io.github.pagano-antonio</groupId>
+    <artifactId>SpringSentinel</artifactId>
+    <version>1.2.0</version>
+    <configuration>
+        <maxDependencies>10</maxDependencies>
+        
+        <secretPattern>.*(password|secret|apikey|pwd|token|auth-key|private-id).*</secretPattern>
+    </configuration>
+    <executions>
+        <execution>
+            <phase>compile</phase>
+            <goals>
+                <goal>audit</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+```
+
