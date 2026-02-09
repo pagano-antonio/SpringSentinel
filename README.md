@@ -73,6 +73,7 @@ Distributed under the Apache License 2.0.
 ## Audit Rules & Analyzed Cases
 
 ⚡ Performance & Database
+
 JPA Eager Fetching Detection: Scans for FetchType.EAGER in JPA entities to prevent unnecessary memory overhead and performance degradation.
 
 N+1 Query Potential: Identifies collection getters called inside loops (for, forEach), a common cause of database performance issues.
@@ -83,6 +84,7 @@ Cache TTL Configuration: Verifies that methods annotated with @Cacheable have a 
 
 
 🔐 Security
+
 Hardcoded Secrets Scanner: Checks class fields and properties for variable names matching sensitive patterns (e.g., password, apikey, token) that do not use environment variable placeholders.
 
 Insecure CORS Policy: Flags the use of the "*" wildcard in @CrossOrigin annotations, which is a significant security risk for production APIs.
@@ -91,6 +93,7 @@ Exposed Repositories: Warns if spring-boot-starter-data-rest is included, as it 
 
 
 🏗️ Architecture & Thread Safety
+
 Singleton Thread Safety (Lombok-aware): Detects mutable state in Singleton beans.
 
 Field Injection Anti-pattern: Flags the use of @Autowired on private fields, encouraging Constructor Injection for better testability and immutability.
@@ -103,6 +106,7 @@ Lazy Injection Smell: Identifies @Lazy combined with @Autowired, often used as a
 
 
 🌐 REST API Governance (New in v1.2.0)
+
 URL Kebab-case Enforcement: Ensures endpoint URLs follow the kebab-case convention (e.g., /user-profiles) instead of camelCase or snake_case.
 
 API Versioning Check: Alerts if an endpoint is missing a versioning prefix (e.g., /v1/), which is essential for long-term API maintenance.
@@ -113,6 +117,7 @@ Missing ResponseEntity: Encourages returning ResponseEntity<T> in Controllers to
 
 
 🛠️ Build & Project Maintenance
+
 Spring Boot Version Audit: Warns if the project is still using Spring Boot 2.x and recommends upgrading to 3.x for Jakarta EE compatibility.
 
 Missing Production Plugins: Checks for the spring-boot-maven-plugin, which is required for packaging executable artifacts.
