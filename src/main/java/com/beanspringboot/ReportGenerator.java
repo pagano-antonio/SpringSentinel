@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 
 /**
  * Generates reports in HTML, JSON, and SARIF formats.
- * SARIF support added in v1.1.9 for better CI/CD integration.
+ * v1.2.0: Added interactive UI filters and priority-based categorization.
  */
 public class ReportGenerator {
 
@@ -19,14 +19,98 @@ public class ReportGenerator {
         Path reportDir = outputDir.toPath().resolve("spring-sentinel-reports");
         Files.createDirectories(reportDir);
         
-        // Sorting: Errors (Red) first, then Warnings (Orange)
+        // Sorting: Priority based (Critical first)
         List<StaticAnalysisCore.AuditIssue> sortedIssues = issues.stream()
-                .sorted(Comparator.comparing(i -> i.type.toLowerCase().contains("warning")))
+                .sorted(Comparator.comparing(this::getPriorityWeight))
                 .collect(Collectors.toList());
 
         generateJsonReport(reportDir, sortedIssues);
         generateHtmlReport(reportDir, sortedIssues);
-        generateSarifReport(reportDir, sortedIssues); // New standardized format
+        generateSarifReport(reportDir, sortedIssues);
+    }
+
+    private int getPriorityWeight(StaticAnalysisCore.AuditIssue issue) {
+        String p = mapToPriority(issue.type);
+        if (p.equals("critical")) return 1;
+        if (p.equals("high")) return 2;
+        return 3;
+    }
+
+    private String mapToPriority(String type) {
+        String t = type.toLowerCase();
+        if (t.contains("security") || t.contains("thread safety") || t.contains("concurrency")) {
+            return "critical";
+        }
+        if (t.contains("performance") || t.contains("architecture") || t.contains("database")) {
+            return "high";
+        }
+        return "warning";
+    }
+
+    private void generateHtmlReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
+        try (FileWriter writer = new FileWriter(reportDir.resolve("report.html").toFile())) {
+            writer.write("<html><head><title>Spring Sentinel Report</title><style>" +
+                "body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#f4f7f6;padding:30px;color:#333;}" +
+                ".summary{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);margin-bottom:20px;}" +
+                ".filter-box{margin-bottom:20px; background:#fff; padding:15px; border-radius:8px; display:flex; align-items:center; gap:10px;}" +
+                "select{padding:8px; border-radius:4px; border:1px solid #ccc; cursor:pointer;}" +
+                ".card{background:#fff;padding:15px;margin-bottom:15px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,0.05); border-left: 6px solid; transition: 0.3s;}" +
+                ".card:hover{transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1);}" +
+                ".tag{background:#34495e;color:#fff;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:bold;text-transform:uppercase;}" +
+                ".critical{border-left-color: #c0392b;}" + // Dark Red
+                ".high{border-left-color: #e67e22;}" +     // Orange
+                ".warning{border-left-color: #f1c40f;}" +  // Yellow
+                "h1{color:#2c3e50; margin-top:0;} .badge-count{background:#2c3e50; color:white; padding:2px 10px; border-radius:10px;}" +
+                "</style></head><body>");
+            
+            writer.write("<h1>🛡️ Spring Sentinel Audit</h1>");
+            
+            // Summary Info
+            writer.write("<div class='summary'>Total issues found: <span class='badge-count'>" + issues.size() + "</span></div>");
+
+            // UI Filters
+            writer.write("<div class='filter-box'>" +
+                "<strong>Filter by Priority:</strong>" +
+                "<select id='priorityFilter' onchange='filterIssues()'>" +
+                "<option value='all'>Show All</option>" +
+                "<option value='critical'>🔴 Critical (Security/Concurrency)</option>" +
+                "<option value='high'>🟠 High (Performance/Architecture)</option>" +
+                "<option value='warning'>🟡 Warning (Best Practice/Design)</option>" +
+                "</select></div>");
+
+            // Issues Container
+            writer.write("<div id='issues-container'>");
+            for (StaticAnalysisCore.AuditIssue i : issues) {
+                String priority = mapToPriority(i.type);
+                
+                writer.write(String.format(
+                    "<div class='card %s' data-priority='%s'>" +
+                    "<span class='tag'>%s</span>" +
+                    "<h3>%s</h3>" +
+                    "<p>Location: <b>%s</b> (Line: %d)</p>" +
+                    "<p style='background:#f9f9f9; padding:10px; border-radius:4px;'><b>Fix:</b> %s</p>" +
+                    "</div>",
+                    priority, priority, i.type, i.reason, i.file, i.line, i.suggestion));
+            }
+            writer.write("</div>");
+
+            // Filter Script
+            writer.write("<script>" +
+                "function filterIssues() {" +
+                "  var val = document.getElementById('priorityFilter').value;" +
+                "  var cards = document.querySelectorAll('.card');" +
+                "  cards.forEach(c => {" +
+                "    if(val === 'all' || c.getAttribute('data-priority') === val) {" +
+                "      c.style.display = 'block';" +
+                "    } else {" +
+                "      c.style.display = 'none';" +
+                "    }" +
+                "  });" +
+                "}" +
+                "</script>");
+            
+            writer.write("</body></html>");
+        }
     }
 
     private void generateJsonReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
@@ -34,42 +118,13 @@ public class ReportGenerator {
             writer.write("{\n  \"totalIssues\": " + issues.size() + ",\n  \"issues\": [\n");
             for (int i = 0; i < issues.size(); i++) {
                 StaticAnalysisCore.AuditIssue issue = issues.get(i);
-                writer.write(String.format("    {\"file\":\"%s\",\"line\":%d,\"type\":\"%s\",\"reason\":\"%s\",\"suggestion\":\"%s\"}%s\n",
-                        issue.file, issue.line, issue.type, issue.reason, issue.suggestion, (i < issues.size() - 1 ? "," : "")));
+                writer.write(String.format("    {\"file\":\"%s\",\"line\":%d,\"type\":\"%s\",\"priority\":\"%s\",\"reason\":\"%s\",\"suggestion\":\"%s\"}%s\n",
+                        issue.file, issue.line, issue.type, mapToPriority(issue.type), issue.reason, issue.suggestion, (i < issues.size() - 1 ? "," : "")));
             }
             writer.write("  ]\n}");
         }
     }
 
-    private void generateHtmlReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
-        try (FileWriter writer = new FileWriter(reportDir.resolve("report.html").toFile())) {
-            writer.write("<html><head><style>" +
-                "body{font-family:sans-serif;background:#f4f7f6;padding:20px;}" +
-                ".card{background:#fff;padding:15px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.1); border-left: 5px solid;}" +
-                ".tag{background:#34495e;color:#fff;padding:2px 5px;border-radius:3px;font-size:11px;}" +
-                ".error-border{border-left-color: #e74c3c;}" + // Red for critical issues
-                ".warning-border{border-left-color: #f39c12;}" + // Orange for design warnings
-                "h1{color:#2c3e50;} .summary{margin-bottom:20px; padding:10px; background:#fff; border-radius:5px;}" +
-                "</style></head><body>");
-            
-            writer.write("<h1>🛡️ Spring Sentinel Report</h1>");
-            writer.write("<div class='summary'>Total issues found: <b>" + issues.size() + "</b></div>");
-            
-            for (StaticAnalysisCore.AuditIssue i : issues) {
-                boolean isWarning = i.type.toLowerCase().contains("warning");
-                String severityClass = isWarning ? "warning-border" : "error-border";
-                
-                writer.write(String.format("<div class='card %s'><span class='tag'>%s</span><h3>%s</h3><p>Location: <b>%s</b> (Line: %d)</p><p><b>Fix:</b> %s</p></div>",
-                        severityClass, i.type, i.reason, i.file, i.line, i.suggestion));
-            }
-            writer.write("</body></html>");
-        }
-    }
-
-    /**
-     * Generates a report in SARIF format (v2.1.0).
-     * This allows native integration with GitHub Code Scanning and Jenkins plugins.
-     */
     private void generateSarifReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
         try (FileWriter writer = new FileWriter(reportDir.resolve("report.sarif").toFile())) {
             writer.write("{\n" +
@@ -80,7 +135,7 @@ public class ReportGenerator {
                 "      \"tool\": {\n" +
                 "        \"driver\": {\n" +
                 "          \"name\": \"SpringSentinel\",\n" +
-                "          \"version\": \"1.1.9\",\n" +
+                "          \"version\": \"1.2.0\",\n" +
                 "          \"informationUri\": \"https://springsentinel.com\"\n" +
                 "        }\n" +
                 "      },\n" +
@@ -88,9 +143,9 @@ public class ReportGenerator {
 
             for (int i = 0; i < issues.size(); i++) {
                 StaticAnalysisCore.AuditIssue issue = issues.get(i);
-                String level = issue.type.toLowerCase().contains("warning") ? "warning" : "error";
+                String priority = mapToPriority(issue.type);
+                String level = priority.equals("critical") || priority.equals("high") ? "error" : "warning";
                 
-                // Ensure proper URI formatting and escaping for JSON
                 String escapedReason = issue.reason.replace("\"", "\\\"");
                 String escapedSuggestion = issue.suggestion.replace("\"", "\\\"");
 
@@ -109,10 +164,7 @@ public class ReportGenerator {
                     "        }" + (i < issues.size() - 1 ? "," : "") + "\n");
             }
 
-            writer.write("      ]\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}");
+            writer.write("      ]\n" + "    }\n" + "  ]\n" + "}");
         }
     }
 }
