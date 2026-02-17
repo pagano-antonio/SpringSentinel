@@ -18,7 +18,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.1.9</version>
+    <version>1.1.10</version>
     <executions>
         <execution>
             <phase>verify</phase> 
@@ -133,7 +133,7 @@ Example Usage
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.2.0</version>
+    <version>1.1,10</version>
     <configuration>
         <maxDependencies>10</maxDependencies>
         
