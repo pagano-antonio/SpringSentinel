@@ -13,21 +13,24 @@ public class RuleConfigLoader {
     public RuleConfigLoader(Log log) { this.log = log; }
 
     public ResolvedConfig loadActiveRules(File customFile, String profileId) throws Exception {
-        Document doc;
+        // 1. Carica SEMPRE il default-rules.xml (La Sorgente di Verità)
+        InputStream is = getClass().getResourceAsStream("/default-rules.xml");
+        if (is == null) throw new RuntimeException("default-rules.xml non trovato nel classpath!");
+        Document defaultDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(is);
+
+        // 2. Carica il custom file dell'utente (se esiste)
+        Document customDoc = null;
         if (customFile != null && customFile.exists()) {
-            doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(customFile);
-        } else {
-            InputStream is = getClass().getResourceAsStream("/default-rules.xml");
-            if (is == null) throw new RuntimeException("default-rules.xml non trovato!");
-            doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(is);
+            log.info("Caricamento profili personalizzati da: " + customFile.getName());
+            customDoc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(customFile);
         }
 
-        // 1. Carica tutti i parametri di default definiti nelle Rules
-        Map<String, Map<String, String>> parameters = loadDefaultRuleParameters(doc);
+        // 3. Carica tutti i parametri di default (SOLO dal defaultDoc, le regole stanno lì)
+        Map<String, Map<String, String>> parameters = loadDefaultRuleParameters(defaultDoc);
 
-        // 2. Risolve i profili (regole attive + override)
+        // 4. Risolve i profili (passando entrambi i documenti)
         Set<String> activeRules = new HashSet<>();
-        applyProfile(doc, profileId, activeRules, parameters);
+        applyProfile(defaultDoc, customDoc, profileId, activeRules, parameters);
 
         return new ResolvedConfig(activeRules, parameters);
     }
@@ -51,20 +54,31 @@ public class RuleConfigLoader {
         return allParams;
     }
 
-    private void applyProfile(Document doc, String profileId, Set<String> activeRules, Map<String, Map<String, String>> parameters) {
-        Element profile = findProfileById(doc, profileId);
-        if (profile == null) return;
+    private void applyProfile(Document defaultDoc, Document customDoc, String profileId, Set<String> activeRules, Map<String, Map<String, String>> parameters) {
+        // Cerca il profilo (prima nel custom, poi nel default)
+        Element profile = findProfileById(defaultDoc, customDoc, profileId);
+        
+        if (profile == null) {
+            log.warn("⚠️ Profilo '" + profileId + "' non trovato in nessun file!");
+            return;
+        }
 
-        // Gestione ereditarietà (prima carichiamo il genitore)
+        // Gestione ereditarietà (ricorsione: carica prima il genitore)
         String parent = profile.getAttribute("extends");
-        if (!parent.isEmpty()) {
-            applyProfile(doc, parent, activeRules, parameters);
+        if (parent != null && !parent.isEmpty()) {
+            applyProfile(defaultDoc, customDoc, parent, activeRules, parameters);
         }
 
         // Aggiunta regole (include)
         NodeList includes = profile.getElementsByTagName("include");
         for (int i = 0; i < includes.getLength(); i++) {
             activeRules.add(((Element) includes.item(i)).getAttribute("rule"));
+        }
+
+        // Rimozione regole (exclude) - LOGICA AGGIUNTA
+        NodeList excludes = profile.getElementsByTagName("exclude");
+        for (int i = 0; i < excludes.getLength(); i++) {
+            activeRules.remove(((Element) excludes.item(i)).getAttribute("rule"));
         }
 
         // Applicazione override (sovrascrivono i default o i genitori)
@@ -79,12 +93,23 @@ public class RuleConfigLoader {
         }
     }
 
-    private Element findProfileById(Document doc, String id) {
-        NodeList profiles = doc.getElementsByTagName("profile");
-        for (int i = 0; i < profiles.getLength(); i++) {
-            Element p = (Element) profiles.item(i);
+    private Element findProfileById(Document defaultDoc, Document customDoc, String id) {
+        // 1. Cerca PRIMA nel file dell'utente (così l'utente può persino sovrascrivere il profilo "standard")
+        if (customDoc != null) {
+            NodeList customProfiles = customDoc.getElementsByTagName("profile");
+            for (int i = 0; i < customProfiles.getLength(); i++) {
+                Element p = (Element) customProfiles.item(i);
+                if (p.getAttribute("id").equals(id)) return p;
+            }
+        }
+
+        // 2. Se non lo trova, cerca nel file di default
+        NodeList defaultProfiles = defaultDoc.getElementsByTagName("profile");
+        for (int i = 0; i < defaultProfiles.getLength(); i++) {
+            Element p = (Element) defaultProfiles.item(i);
             if (p.getAttribute("id").equals(id)) return p;
         }
-        return null;
+
+        return null; // Profilo non esistente
     }
 }
