@@ -1,6 +1,7 @@
 package com.springsentinel;
 
 import com.beanspringboot.AnalysisRules;
+import com.beanspringboot.ResolvedConfig;
 import com.beanspringboot.StaticAnalysisCore;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
@@ -10,9 +11,7 @@ import org.apache.maven.project.MavenProject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,18 +20,30 @@ class StaticAnalysisCoreTest {
     private List<StaticAnalysisCore.AuditIssue> issues;
     private AnalysisRules rules;
     private StaticAnalysisCore core;
+    private ResolvedConfig testConfig;
 
-    private final int DEFAULT_MAX_DEPS = 7;
-    private final String DEFAULT_REGEX = ".*(password|secret|apikey|pwd|token).*";
+    // Set di tutte le regole per i test di regressione
+    private final Set<String> ALL_RULES = Set.of(
+        "SEC-001", "SEC-002", "SEC-003", "SEC-H2",
+        "PERF-001", "PERF-002", "PERF-003", "PERF-004",
+        "ARCH-001", "ARCH-002", "ARCH-003", "ARCH-004", "ARCH-005", "ARCH-OSIV",
+        "RES-001", "RES-002",
+        "MAINT-001", "MAINT-002", "MAINT-003",
+        "REST-001", "REST-002", "REST-003", "REST-004"
+    );
 
     @BeforeEach
     void setUp() {
         issues = new ArrayList<>();
-        rules = new AnalysisRules(issues::add);
-        core = new StaticAnalysisCore(new SystemStreamLog());
+        // Inizializziamo una configurazione di test con tutte le regole attive
+        testConfig = new ResolvedConfig(new HashSet<>(ALL_RULES), new HashMap<>());
+        
+        // AnalysisRules ora accetta ResolvedConfig
+        rules = new AnalysisRules(issues::add, testConfig);
+        core = new StaticAnalysisCore(new SystemStreamLog(), null);
     }
 
-    // --- REST DESIGN (NEW FOR 1.1.7 - 3 TESTS) ---
+    // --- REST DESIGN TESTS ---
 
     @Test
     void shouldDetectNonKebabCaseUrl() {
@@ -52,7 +63,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Singular Resource Name"), "Should suggest plural /users");
     }
 
-    // --- SECURITY & SECRETS (3 TESTS) ---
+    // --- SECURITY & SECRETS TESTS ---
 
     @Test
     void shouldDetectHardcodedSecrets() {
@@ -62,8 +73,12 @@ class StaticAnalysisCoreTest {
 
     @Test
     void shouldDetectSecretsWithCustomRegex() {
+        // Simuliamo l'override del parametro pattern tramite la configurazione
+        testConfig.overrideParameter("SEC-001", "pattern", ".*token.*");
+        
         CompilationUnit cu = StaticJavaParser.parse("class Vault { String my_access_token = \"12345\"; }");
-        rules.runAllChecks(cu, "Test.java", new Properties(), DEFAULT_MAX_DEPS, ".*token.*");
+        rules.runAllChecks(cu, "Test.java", new Properties());
+        
         assertTrue(hasIssue("Potential Hardcoded Secret"));
     }
 
@@ -71,11 +86,13 @@ class StaticAnalysisCoreTest {
     void shouldDetectSecretInProperties() {
         Properties props = new Properties();
         props.setProperty("database.password", "secret123");
-        core.executeAnalysisWithPropsOnly(props, issues); 
+        
+        // AnalysisWithPropsOnly ora accetta ResolvedConfig
+        core.executeAnalysisWithPropsOnly(props, issues, testConfig); 
         assertTrue(hasIssue("Hardcoded Secret"));
     }
 
-    // --- ARCHITECTURE & DESIGN (5 TESTS) ---
+    // --- ARCHITECTURE & DESIGN TESTS ---
 
     @Test
     void shouldDetectFatComponent() {
@@ -85,9 +102,13 @@ class StaticAnalysisCoreTest {
 
     @Test
     void shouldBeTolerantWithCustomMaxDependencies() {
+        // Simuliamo l'override: alziamo il limite a 10
+        testConfig.overrideParameter("ARCH-003", "maxDependencies", "10");
+        
         CompilationUnit cu = StaticJavaParser.parse("@Service class BigService { @Autowired S1 s1; @Autowired S2 s2; @Autowired S3 s3; @Autowired S4 s4; @Autowired S5 s5; @Autowired S6 s6; @Autowired S7 s7; @Autowired S8 s8; }");
-        rules.runAllChecks(cu, "Test.java", new Properties(), 10, DEFAULT_REGEX);
-        assertFalse(hasIssue("Fat Component"));
+        rules.runAllChecks(cu, "Test.java", new Properties());
+        
+        assertFalse(hasIssue("Fat Component"), "Should not detect fat component with limit 10");
     }
 
     @Test
@@ -108,7 +129,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Field Injection"));
     }
 
-    // --- HOLISTIC: POM & PROJECT (3 TESTS) ---
+    // --- HOLISTIC: POM & PROJECT TESTS ---
 
     @Test
     void shouldDetectMissingSpringBootPluginInPom() {
@@ -137,7 +158,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Exposed Repositories (Data REST)"));
     }
 
-    // --- PERFORMANCE & JPA (4 TESTS) ---
+    // --- PERFORMANCE & JPA TESTS ---
 
     @Test
     void shouldDetectNPlusOne() {
@@ -155,7 +176,7 @@ class StaticAnalysisCoreTest {
     void shouldDetectOSIVEnabled() {
         Properties props = new Properties();
         props.setProperty("spring.jpa.open-in-view", "true");
-        core.executeAnalysisWithPropsOnly(props, issues);
+        core.executeAnalysisWithPropsOnly(props, issues, testConfig);
         assertTrue(hasIssue("OSIV is Enabled"));
     }
 
@@ -165,7 +186,7 @@ class StaticAnalysisCoreTest {
         assertTrue(hasIssue("Blocking call in Transaction"));
     }
 
-    // --- BEST PRACTICES & CONCURRENCY (4 TESTS) ---
+    // --- BEST PRACTICES & CONCURRENCY TESTS ---
 
     @Test
     void shouldDetectMissingRepositoryAnnotation() {
@@ -195,7 +216,8 @@ class StaticAnalysisCoreTest {
 
     private void executeTest(String code) {
         CompilationUnit cu = StaticJavaParser.parse(code);
-        rules.runAllChecks(cu, "Test.java", new Properties(), DEFAULT_MAX_DEPS, DEFAULT_REGEX);
+        // Signature aggiornata: passiamo solo cu, fileName e props
+        rules.runAllChecks(cu, "Test.java", new Properties());
     }
 
     private boolean hasIssue(String reasonFragment) {

@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 /**
  * Core analysis logic for Spring Boot projects.
- * v1.2.0: Fixed Issue #1 (Lombok @FieldDefaults) and stabilized REST naming checks.
+ * v1.3.0: Integrated ResolvedConfig for dynamic parameter management (XML + Overrides).
  */
 public class AnalysisRules {
 
@@ -27,21 +27,27 @@ public class AnalysisRules {
     );
 
     private final Consumer<StaticAnalysisCore.AuditIssue> issueConsumer;
+    private final ResolvedConfig config;
 
-    public AnalysisRules(Consumer<StaticAnalysisCore.AuditIssue> issueConsumer) {
+    public AnalysisRules(Consumer<StaticAnalysisCore.AuditIssue> issueConsumer, ResolvedConfig config) {
         this.issueConsumer = issueConsumer;
+        this.config = config;
     }
 
     private void addIssue(String f, int l, String t, String r, String s) {
         issueConsumer.accept(new StaticAnalysisCore.AuditIssue(f, l, t, r, s));
     }
 
-    // --- HOLISTIC ANALYSIS (POM.XML) ---
+    private boolean isRuleActive(String id) {
+        return config.getActiveRules().contains(id);
+    }
+
+    // --- ANALISI OLISTICA (POM.XML) ---
 
     public void runProjectChecks(MavenProject project) {
         if (project == null) return;
-        checkDependencyConflicts(project);
-        checkMissingProductionPlugins(project);
+        if (isRuleActive("SEC-003") || isRuleActive("MAINT-001")) checkDependencyConflicts(project);
+        if (isRuleActive("MAINT-002")) checkMissingProductionPlugins(project);
     }
 
     private void checkDependencyConflicts(MavenProject project) {
@@ -49,12 +55,12 @@ public class AnalysisRules {
             Dependency dep = (Dependency) depObj;
             String artifactId = dep.getArtifactId();
             
-            if ("spring-boot-starter-data-rest".equals(artifactId)) {
+            if (isRuleActive("SEC-003") && "spring-boot-starter-data-rest".equals(artifactId)) {
                 addIssue("pom.xml", 0, "Architecture", "Exposed Repositories (Data REST)", 
                     "Spring Data REST automatically exposes all repositories. Ensure endpoints are properly secured.");
             }
             
-            if ("spring-boot-starter".equals(artifactId) && dep.getVersion() != null) {
+            if (isRuleActive("MAINT-001") && "spring-boot-starter".equals(artifactId) && dep.getVersion() != null) {
                 if (dep.getVersion().startsWith("2.")) {
                     addIssue("pom.xml", 0, "Maintenance", "Old Spring Boot Version", 
                         "Project is using Spring Boot 2.x. Upgrade to 3.x for Jakarta EE compatibility and security updates.");
@@ -78,25 +84,38 @@ public class AnalysisRules {
         }
     }
 
-    // --- JAVA CODE ANALYSIS ---
+    // --- ANALISI CODICE JAVA ---
 
-    public void runAllChecks(CompilationUnit cu, String fileName, Properties props, int maxDeps, String sPattern) {
-        checkJPAEager(cu, fileName);
-        checkNPlusOne(cu, fileName);
-        checkBlockingTransactional(cu, fileName);
-        checkManualThreads(cu, fileName);
-        checkCacheTTL(cu, fileName, props);
-        checkTransactionTimeout(cu, fileName);
-        checkMissingRepositoryAnnotation(cu, fileName);
-        checkAutowiredFieldInjection(cu, fileName);
-        checkHardcodedSecrets(cu, fileName, sPattern);
-        checkCrossOriginWildcard(cu, fileName);
-        checkMissingResponseEntity(cu, fileName);
-        checkBeanScopesAndThreadSafety(cu, fileName);
-        checkFatComponents(cu, fileName, maxDeps);
-        checkLazyInjectionSmell(cu, fileName);
-        checkManualInstantiation(cu, fileName);
-        checkRestfulNaming(cu, fileName); 
+    public void runAllChecks(CompilationUnit cu, String fileName, Properties props) {
+        // Regole con parametri caricati dinamicamente da ResolvedConfig
+        if (isRuleActive("SEC-001")) {
+            String pattern = config.getParameter("SEC-001", "pattern", ".*(password|secret|apikey|pwd|token).*");
+            checkHardcodedSecrets(cu, fileName, pattern);
+        }
+        
+        if (isRuleActive("ARCH-003")) {
+            int maxDeps = Integer.parseInt(config.getParameter("ARCH-003", "maxDependencies", "7"));
+            checkFatComponents(cu, fileName, maxDeps);
+        }
+
+        // Regole standard
+        if (isRuleActive("PERF-001")) checkJPAEager(cu, fileName);
+        if (isRuleActive("PERF-002")) checkNPlusOne(cu, fileName);
+        if (isRuleActive("PERF-003")) checkBlockingTransactional(cu, fileName);
+        if (isRuleActive("RES-001")) checkManualThreads(cu, fileName);
+        if (isRuleActive("PERF-004")) checkCacheTTL(cu, fileName, props);
+        if (isRuleActive("RES-002")) checkTransactionTimeout(cu, fileName);
+        if (isRuleActive("MAINT-003")) checkMissingRepositoryAnnotation(cu, fileName);
+        if (isRuleActive("ARCH-002")) checkAutowiredFieldInjection(cu, fileName);
+        if (isRuleActive("SEC-002")) checkCrossOriginWildcard(cu, fileName);
+        if (isRuleActive("REST-004")) checkMissingResponseEntity(cu, fileName);
+        if (isRuleActive("ARCH-001")) checkBeanScopesAndThreadSafety(cu, fileName);
+        if (isRuleActive("ARCH-005")) checkLazyInjectionSmell(cu, fileName);
+        if (isRuleActive("ARCH-004")) checkManualInstantiation(cu, fileName);
+        
+        if (isRuleActive("REST-001") || isRuleActive("REST-002") || isRuleActive("REST-003")) {
+            checkRestfulNaming(cu, fileName); 
+        }
     }
 
     protected void checkRestfulNaming(CompilationUnit cu, String f) {
@@ -108,17 +127,17 @@ public class AnalysisRules {
                     if (url.startsWith("/")) {
                         String type = "REST Design (Warning)";
 
-                        if (url.matches(".*[A-Z].*") || url.contains("_")) {
+                        if (isRuleActive("REST-001") && (url.matches(".*[A-Z].*") || url.contains("_"))) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Non-standard URL naming", 
                                 "URL '" + url + "' should use kebab-case (lowercase with hyphens).");
                         }
-                        if (!url.matches(".*/v[0-9]+.*") && !url.equals("/")) {
+                        if (isRuleActive("REST-002") && !url.matches(".*/v[0-9]+.*") && !url.equals("/")) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Missing API Versioning", 
                                 "URL '" + url + "' is missing a version prefix (e.g., /v1).");
                         }
-                        if (isSingular(url)) {
+                        if (isRuleActive("REST-003") && isSingular(url)) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Singular Resource Name", 
                                 "Resource '" + url + "' should be plural (e.g., /users).");
@@ -127,13 +146,6 @@ public class AnalysisRules {
                 });
             }
         });
-    }
-
-    private boolean isSingular(String url) {
-        String[] parts = url.split("/");
-        if (parts.length == 0) return false;
-        String lastPart = parts[parts.length - 1];
-        return !lastPart.isEmpty() && !lastPart.endsWith("s") && !lastPart.contains("{");
     }
 
     protected void checkHardcodedSecrets(CompilationUnit cu, String f, String pattern) {
@@ -150,11 +162,16 @@ public class AnalysisRules {
     protected void checkFatComponents(CompilationUnit cu, String f, int maxDeps) {
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
             long injectedFields = clazz.findAll(FieldDeclaration.class).stream().filter(this::isInjectedField).count();
-            int constructorParams = clazz.getConstructors().stream().mapToInt(c -> c.getParameters().size()).max().orElse(0);
+            
+            // Fix: OptionalInt corretto con orElse(0)
+            int constructorParams = clazz.getConstructors().stream()
+                    .mapToInt(c -> c.getParameters().size())
+                    .max()
+                    .orElse(0); 
             
             if ((injectedFields + constructorParams) > maxDeps) {
                 addIssue(f, clazz.getBegin().map(p -> p.line).orElse(0), "Architecture", "Fat Component", 
-                    "Class has " + (injectedFields + constructorParams) + " dependencies, exceeding the limit of " + maxDeps + ". Refactor into smaller services.");
+                    "Class has " + (injectedFields + constructorParams) + " dependencies, exceeding the limit of " + maxDeps + ".");
             }
         });
     }
@@ -175,7 +192,7 @@ public class AnalysisRules {
             if (field.toString().contains("FetchType.EAGER")) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Performance", "EAGER Fetching detected", 
-                    "JPA EAGER fetching can cause overhead. Switch to LAZY and use 'join fetch' where needed.");
+                    "JPA EAGER fetching can cause overhead. Switch to LAZY.");
             }
         });
     }
@@ -187,7 +204,7 @@ public class AnalysisRules {
                    (call.getNameAsString().endsWith("s") || call.getNameAsString().endsWith("List"))) {
                     addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
                         "Database", "Potential N+1 Query", 
-                        "Avoid calling collection getters inside loops. Use Eager Loading or JOIN FETCH.");
+                        "Avoid calling collection getters inside loops.");
                 }
             });
         });
@@ -196,15 +213,13 @@ public class AnalysisRules {
     protected void checkBlockingTransactional(CompilationUnit cu, String f) {
         cu.findAll(MethodDeclaration.class).stream()
             .filter(m -> m.isAnnotationPresent("Transactional"))
-            .forEach(m -> {
-                m.findAll(MethodCallExpr.class).forEach(call -> {
-                    if (BLOCKING_CALLS.stream().anyMatch(b -> call.toString().toLowerCase().contains(b))) {
-                        addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
-                            "Concurrency", "Blocking call in Transaction", 
-                            "Network/IO calls inside @Transactional can lead to connection pool exhaustion.");
-                    }
-                });
-            });
+            .forEach(m -> m.findAll(MethodCallExpr.class).forEach(call -> {
+                if (BLOCKING_CALLS.stream().anyMatch(b -> call.toString().toLowerCase().contains(b))) {
+                    addIssue(f, call.getBegin().map(p -> p.line).orElse(0), 
+                        "Concurrency", "Blocking call in Transaction", 
+                        "Avoid network/IO calls inside @Transactional.");
+                }
+            }));
     }
 
     protected void checkManualThreads(CompilationUnit cu, String f) {
@@ -212,7 +227,7 @@ public class AnalysisRules {
             if (n.getTypeAsString().equals("Thread") || n.getTypeAsString().equals("ExecutorService")) {
                 addIssue(f, n.getBegin().map(p -> p.line).orElse(0), 
                     "Resource Mgmt", "Manual Thread creation", 
-                    "Manual threading is discouraged in Spring. Use @Async or a managed TaskExecutor.");
+                    "Manual threading is discouraged in Spring. Use @Async.");
             }
         });
     }
@@ -222,7 +237,7 @@ public class AnalysisRules {
         boolean hasTTL = p.keySet().stream().anyMatch(k -> k.toString().contains("ttl") || k.toString().contains("expire"));
         if (!hasTTL) {
             addIssue(f, 0, "Caching", "Cache missing TTL", 
-                "Define a Time-To-Live (TTL) for caches in application.properties to avoid stale data.");
+                "Define a Time-To-Live (TTL) for caches in application.properties.");
         }
     }
 
@@ -245,7 +260,7 @@ public class AnalysisRules {
                 if (!c.isAnnotationPresent("Repository")) {
                     addIssue(f, c.getBegin().map(p -> p.line).orElse(0), 
                         "Best Practice", "Missing @Repository", 
-                        "Add @Repository to your data access interfaces for proper exception translation.");
+                        "Add @Repository to your data access interfaces.");
                 }
             });
     }
@@ -255,7 +270,7 @@ public class AnalysisRules {
             if (field.isAnnotationPresent("Autowired") || field.isAnnotationPresent("Inject")) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Architecture", "Field Injection", 
-                    "Field injection is an anti-pattern. Use constructor injection for better testability.");
+                    "Field injection is an anti-pattern. Use constructor injection.");
             }
         });
     }
@@ -267,7 +282,7 @@ public class AnalysisRules {
                 if (a.toString().equals("@CrossOrigin") || a.toString().contains("\"*\"")) {
                     addIssue(f, a.getBegin().map(p -> p.line).orElse(0), 
                         "Security", "Insecure @CrossOrigin policy", 
-                        "CORS wildcard '*' is insecure. Specify allowed domains explicitly.");
+                        "CORS wildcard '*' is insecure.");
                 }
             });
     }
@@ -281,47 +296,45 @@ public class AnalysisRules {
                     .filter(m -> !m.getType().asString().startsWith("ResponseEntity"))
                     .forEach(m -> addIssue(f, m.getBegin().map(p -> p.line).orElse(0), 
                         "Best Practice", "Missing ResponseEntity", 
-                        "Return ResponseEntity<T> in RestControllers to handle HTTP status codes properly."));
+                        "Return ResponseEntity<T> in RestControllers."));
             });
     }
 
-    /**
-     * Updated for Issue #1: Now recognizes Lombok @FieldDefaults(makeFinal = true) 
-     * to avoid false positives on thread safety.
-     */
-    /**
-     * Analizza la thread-safety dei Bean Singleton di Spring.
-     * v1.2.0: Riconosce Lombok @FieldDefaults(makeFinal = true) per evitare falsi positivi.
-     */
     protected void checkBeanScopesAndThreadSafety(CompilationUnit cu, String f) {
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
             if (isSpringComponent(clazz)) {
-                // Verifica se Lombok rende i campi final automaticamente
                 boolean lombokMakesFinal = clazz.getAnnotations().stream()
                         .anyMatch(a -> a.getNameAsString().equals("FieldDefaults") && 
                                        a.toString().replace(" ", "").contains("makeFinal=true"));
 
                 if (!lombokMakesFinal) {
                     clazz.findAll(FieldDeclaration.class).forEach(field -> {
-                        // Se il campo non è final, non è iniettato e non è statico, è un rischio di stato mutabile
                         if (!field.isFinal() && !isInjectedField(field) && !field.isStatic()) {
                             addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                                 "Thread Safety", "Mutable state in Singleton", 
-                                "Spring Beans are Singletons. Avoid mutable fields or use Lombok @FieldDefaults(makeFinal=true).");
+                                "Spring Beans are Singletons. Avoid mutable fields.");
                         }
                     });
                 }
             }
         });
     }
+
     protected void checkLazyInjectionSmell(CompilationUnit cu, String f) {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             if (field.isAnnotationPresent("Lazy") && field.isAnnotationPresent("Autowired")) {
                 addIssue(f, field.getBegin().map(p -> p.line).orElse(0), 
                     "Design Smell", "Lazy Injection", 
-                    "@Lazy injection is often a workaround for circular dependencies. Refactor the architecture.");
+                    "@Lazy injection is often a workaround for circular dependencies.");
             }
         });
+    }
+
+    private boolean isSingular(String url) {
+        String[] parts = url.split("/");
+        if (parts.length == 0) return false;
+        String lastPart = parts[parts.length - 1];
+        return !lastPart.isEmpty() && !lastPart.endsWith("s") && !lastPart.contains("{");
     }
 
     private boolean isSpringComponent(ClassOrInterfaceDeclaration clazz) {

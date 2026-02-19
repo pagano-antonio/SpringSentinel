@@ -17,15 +17,18 @@ import java.util.stream.Stream;
 
 /**
  * Core engine for SpringSentinel static analysis.
- * v1.2.0: Robust Java 21+ support for unnamed variables and modern syntax.
+ * v1.3.0: Integrated ResolvedConfig for hierarchical parameter management.
  */
 public class StaticAnalysisCore {
     private final Log log;
     private final MavenProject project;
     private final List<AuditIssue> issues = new ArrayList<>();
 
-    private int maxDependencies = 7;
-    private String secretPattern = ".*(password|secret|apikey|pwd|token).*";
+    // Parametri dal Maven Mojo
+    private String selectedProfile = "strict"; 
+    private File customRulesFile;
+    private int maxDependencies = 7; // Default Mojo
+    private String secretPattern = ".*(password|secret|apikey|pwd|token).*"; // Default Mojo
 
     public StaticAnalysisCore(Log log, MavenProject project) {
         this.log = log;
@@ -37,72 +40,84 @@ public class StaticAnalysisCore {
         this(log, null);
     }
 
-    /**
-     * Configures the parser level. 
-     * Uses dynamic resolution to avoid compilation errors if JAVA_21 is not yet in the classpath.
-     */
     private void configureJavaParser() {
         ParserConfiguration config = new ParserConfiguration();
         try {
-            // Tentativo di caricare JAVA_21 per supportare le unnamed variables (_)
             config.setLanguageLevel(ParserConfiguration.LanguageLevel.valueOf("JAVA_21"));
             log.info("JavaParser configured for Language Level: JAVA_21");
         } catch (IllegalArgumentException e) {
-            // Fallback a JAVA_17 se la costante non esiste nella versione corrente della lib
             config.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
-            log.warn("JAVA_21 not found in JavaParser constants. Falling back to JAVA_17.");
+            log.warn("JAVA_21 not found in constants. Falling back to JAVA_17.");
         }
         StaticJavaParser.setConfiguration(config);
     }
 
-    public void setMaxDependencies(int maxDependencies) {
-        this.maxDependencies = maxDependencies;
-    }
-
-    public void setSecretPattern(String secretPattern) {
-        this.secretPattern = secretPattern;
-    }
+    // Setter per parametri dal Maven Mojo
+    public void setSelectedProfile(String profile) { this.selectedProfile = profile; }
+    public void setCustomRulesFile(File file) { this.customRulesFile = file; }
+    public void setMaxDependencies(int maxDependencies) { this.maxDependencies = maxDependencies; }
+    public void setSecretPattern(String secretPattern) { this.secretPattern = secretPattern; }
 
     public void executeAnalysis(File baseDir, File outputDir) throws Exception {
         Path javaPath = baseDir.toPath().resolve("src/main/java");
         Path resPath = baseDir.toPath().resolve("src/main/resources");
 
-        AnalysisRules rules = new AnalysisRules(this.issues::add);
+        // 1. Caricamento della configurazione risolta (XML + Gerarchia Profili)
+        log.info("Loading analysis profile: " + selectedProfile);
+        RuleConfigLoader configLoader = new RuleConfigLoader(log);
+        ResolvedConfig config = configLoader.loadActiveRules(customRulesFile, selectedProfile);
 
-        // 1. Holistic POM Analysis
+        // 2. APPLICA OVERRIDE DA POM.XML (Se l'utente ha configurato il plugin nel POM)
+        // Se i valori sono diversi dai default del Mojo, l'utente vuole forzarli
+        if (maxDependencies != 7) {
+            log.info("Applying POM override: maxDependencies = " + maxDependencies);
+            config.overrideParameter("ARCH-003", "maxDependencies", String.valueOf(maxDependencies));
+        }
+        if (!secretPattern.equals(".*(password|secret|apikey|pwd|token).*")) {
+            log.info("Applying POM override: secretPattern custom detected");
+            config.overrideParameter("SEC-001", "pattern", secretPattern);
+        }
+
+        // Inizializza AnalysisRules con la configurazione risolta
+        AnalysisRules rules = new AnalysisRules(this.issues::add, config);
+
+        // 3. Holistic POM Analysis
         if (project != null) {
-            log.info("Starting holistic project analysis...");
+            log.info("Starting project-level audit...");
             rules.runProjectChecks(project);
         }
 
-        // 2. Properties Analysis
+        // 4. Properties Analysis
         Properties props = loadProperties(resPath);
-        executeAnalysisWithPropsOnly(props, this.issues);
+        executeAnalysisWithPropsOnly(props, this.issues, config);
 
-        // 3. Java Source Code Analysis
+        // 5. Java Source Code Analysis
         if (Files.exists(javaPath)) {
-            log.info("Scanning Java source files...");
+            log.info("Scanning Java source files with " + config.getActiveRules().size() + " active rules...");
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java")).forEach(path -> {
                     try {
                         CompilationUnit cu = StaticJavaParser.parse(path);
-                        rules.runAllChecks(cu, path.getFileName().toString(), props, maxDependencies, secretPattern);
+                        // runAllChecks ora è più pulito, non serve passare maxDeps e pattern
+                        rules.runAllChecks(cu, path.getFileName().toString(), props);
                     } catch (Exception e) {
-                        // Risolve la Issue #2: se un file fallisce (es. Java 25), il plugin continua
                         log.error("Parsing failed for " + path.getFileName() + ": " + e.getMessage());
                     }
                 });
             }
         }
 
-        // 4. Multi-format Report Generation (HTML, JSON, SARIF)
-        new ReportGenerator().generateReports(outputDir, issues);
+        // 6. Report Generation
+        new ReportGenerator().generateReports(outputDir, issues, selectedProfile);
     }
 
-    public void executeAnalysisWithPropsOnly(Properties props, List<AuditIssue> issuesList) {
-        checkOSIV(props, issuesList);
-        checkPropertiesSecrets(props, issuesList, secretPattern);
-        checkCriticalProperties(props, issuesList);
+    public void executeAnalysisWithPropsOnly(Properties props, List<AuditIssue> issuesList, ResolvedConfig config) {
+        // Recupera il pattern (potrebbe essere quello di default, quello del profilo o l'override del POM)
+        String pattern = config.getParameter("SEC-001", "pattern", secretPattern);
+
+        if (config.getActiveRules().contains("ARCH-OSIV")) checkOSIV(props, issuesList);
+        if (config.getActiveRules().contains("SEC-001")) checkPropertiesSecrets(props, issuesList, pattern);
+        if (config.getActiveRules().contains("SEC-H2")) checkCriticalProperties(props, issuesList);
     }
 
     private void checkOSIV(Properties p, List<AuditIssue> issuesList) {
@@ -117,7 +132,7 @@ public class StaticAnalysisCore {
             String k = key.toString().toLowerCase();
             if (k.matches(pattern) && !value.toString().matches("\\$\\{.*\\}")) {
                 issuesList.add(new AuditIssue("application.properties", 0, "Security", "Hardcoded Secret", 
-                    "Sensitive data found in properties. Move to environment variables."));
+                    "Sensitive data found in properties key '" + k + "'. Move to environment variables."));
             }
         });
     }

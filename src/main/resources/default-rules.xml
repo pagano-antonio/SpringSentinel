@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<spring-sentinel xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+    <rules>
+        <rule id="SEC-001" severity="CRITICAL">
+            <name>Potential Hardcoded Secret</name>
+            <parameters>
+                <parameter name="pattern" value=".*(password|secret|apikey|pwd|token).*" />
+            </parameters>
+            <rationale>Variable name matches the security pattern. Sensitive data should be moved to environment variables.</rationale>
+        </rule>
+        
+        <rule id="SEC-002" severity="CRITICAL">
+            <name>Insecure @CrossOrigin policy</name>
+            <rationale>Wildcard '*' or missing origin restriction in CORS is insecure for production APIs.</rationale>
+        </rule>
+        
+        <rule id="SEC-003" severity="HIGH">
+            <name>Exposed Repositories (Data REST)</name>
+            <rationale>spring-boot-starter-data-rest automatically exposes all repositories. Ensure they are secured.</rationale>
+        </rule>
+
+        <rule id="PERF-001" severity="HIGH">
+            <name>EAGER Fetching detected</name>
+            <rationale>JPA Eager fetching causes performance overhead. Switch to LAZY and use 'join fetch'.</rationale>
+        </rule>
+        <rule id="PERF-002" severity="HIGH">
+            <name>Potential N+1 Query</name>
+            <rationale>Calling collection getters inside loops triggers multiple DB queries. Use Eager Loading or JOIN FETCH.</rationale>
+        </rule>
+        <rule id="PERF-003" severity="CRITICAL">
+            <name>Blocking call in Transaction</name>
+            <rationale>Network/IO calls like RestTemplate inside @Transactional can exhaust the connection pool.</rationale>
+        </rule>
+        <rule id="PERF-004" severity="WARNING">
+            <name>Cache missing TTL</name>
+            <rationale>Caches should have a TTL in application.properties to prevent stale data.</rationale>
+        </rule>
+
+        <rule id="ARCH-001" severity="HIGH">
+            <name>Mutable state in Singleton</name>
+            <rationale>Spring Beans are Singletons. Avoid mutable fields or use Lombok @FieldDefaults(makeFinal=true).</rationale>
+        </rule>
+        <rule id="ARCH-002" severity="WARNING">
+            <name>Field Injection Anti-pattern</name>
+            <rationale>Field injection is harder to test. Constructor injection is the recommended pattern.</rationale>
+        </rule>
+        
+        <rule id="ARCH-003" severity="WARNING">
+            <name>Fat Component</name>
+            <parameters>
+                <parameter name="maxDependencies" value="7" />
+            </parameters>
+            <rationale>Class exceeds the dependency limit. Consider refactoring into smaller services.</rationale>
+        </rule>
+        
+        <rule id="ARCH-004" severity="WARNING">
+            <name>Manual Instantiation of Spring Bean</name>
+            <rationale>Avoid 'new' for Services/Repositories. Let Spring manage the bean lifecycle via DI.</rationale>
+        </rule>
+        <rule id="ARCH-005" severity="INFO">
+            <name>Lazy Injection Smell</name>
+            <rationale>@Lazy is often a workaround for circular dependencies that requires architectural refactoring.</rationale>
+        </rule>
+
+        <rule id="RES-001" severity="HIGH">
+            <name>Manual Thread creation</name>
+            <rationale>Avoid manual Thread/ExecutorService creation. Use @Async or managed TaskExecutors.</rationale>
+        </rule>
+        <rule id="RES-002" severity="WARNING">
+            <name>Missing Transaction Timeout</name>
+            <rationale>Explicitly define a timeout for long-running transactions to improve resilience.</rationale>
+        </rule>
+        <rule id="MAINT-001" severity="HIGH">
+            <name>Old Spring Boot Version</name>
+            <rationale>Spring Boot 2.x is reaching end of life. Upgrade to 3.x for Jakarta EE support.</rationale>
+        </rule>
+        <rule id="MAINT-002" severity="CRITICAL">
+            <name>Missing Spring Boot Plugin</name>
+            <rationale>Required to package executable JAR/WAR files correctly.</rationale>
+        </rule>
+        <rule id="MAINT-003" severity="INFO">
+            <name>Missing @Repository</name>
+            <rationale>Add @Repository to data interfaces for proper persistence exception translation.</rationale>
+        </rule>
+
+        <rule id="REST-001" severity="INFO">
+            <name>Non-standard URL naming</name>
+            <rationale>URLs should use kebab-case (lowercase with hyphens) for better readability.</rationale>
+        </rule>
+        <rule id="REST-002" severity="INFO">
+            <name>Missing API Versioning</name>
+            <rationale>Missing version prefix (e.g., /v1). Important for long-term API maintenance.</rationale>
+        </rule>
+        <rule id="REST-003" severity="INFO">
+            <name>Singular Resource Name</name>
+            <rationale>Resource names should be plural (e.g., /users instead of /user).</rationale>
+        </rule>
+        <rule id="REST-004" severity="WARNING">
+            <name>Missing ResponseEntity</name>
+            <rationale>Return ResponseEntity in RestControllers to explicitly handle HTTP status codes.</rationale>
+        </rule>
+    </rules>
+
+    <profiles>
+        <profile id="security-only">
+            <name>Security First</name>
+            <description>Focuses exclusively on non-negotiable security vulnerabilities.</description>
+            <include rule="SEC-001" />
+            <include rule="SEC-002" />
+            <include rule="SEC-003" />
+        </profile>
+
+        <profile id="standard" extends="security-only">
+            <name>Standard Spring Health</name>
+            <description>Includes security, performance and core architecture checks.</description>
+            <include rule="PERF-001" />
+            <include rule="PERF-002" />
+            <include rule="PERF-003" />
+            <include rule="PERF-004" />
+            <include rule="ARCH-001" />
+            <include rule="ARCH-002" />
+            <include rule="RES-001" />
+            <include rule="RES-002" />
+            <include rule="MAINT-001" />
+            <include rule="MAINT-002" />
+            <include rule="MAINT-003" />
+            <override rule="ARCH-003" param="maxDependencies" value="10" />
+        </profile>
+
+        <profile id="strict" extends="standard">
+            <name>Full Governance</name>
+            <description>The most rigorous analysis profile. Maximum consistency.</description>
+            <include rule="ARCH-003" />
+            <include rule="ARCH-004" />
+            <include rule="ARCH-005" />
+            <include rule="REST-001" />
+            <include rule="REST-002" />
+            <include rule="REST-003" />
+            <include rule="REST-004" />
+            <override rule="ARCH-003" param="maxDependencies" value="5" />
+        </profile>
+    </profiles>
+
+</spring-sentinel>
