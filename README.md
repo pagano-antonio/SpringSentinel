@@ -129,13 +129,15 @@ Repository Best Practices: Ensures that data access interfaces are correctly ann
 
 ## Configuration 
 ConfigurationSpringSentinel is designed to be flexible. You can customize the audit thresholds and security patterns by adding a <configuration> block to the plugin declaration in your pom.xml.Available ParametersParameterDefault ValueDescriptionmaxDependencies7The maximum number of allowed dependencies (constructor params + injected fields) before a "Fat Component" warning is triggered.secretPattern.*(password|secret|apikey|pwd|token).*A regular expression used to scan field names and properties for potential hardcoded sensitive data.
-Custom XML Profiles: Define your own rulesets. Extend built-in profiles (security-only, standard, strict) and <include> or <exclude> specific rules to match your company's guidelines.
+
+## Custom XML Profiles: 
+Define your own rulesets. Extend built-in profiles (security-only, standard, strict) and <include> or <exclude> specific rules to match your company's guidelines.
 Granular Path Filtering (Regex): Apply rules only to specific modules or ignore legacy directories using includePaths and excludePaths.
 Parameter Overrides: Fine-tune rule behaviors (like dependency limits or secret regex patterns) on a per-profile basis.
 Smart Relative Paths: Reports now display the full relative path of the analyzed files (e.g., src/main/java/...) for immediate issue localization.
 
 
-##Advanced Configuration (Custom Rules & Path Filtering)
+## Advanced Configuration (Custom Rules & Path Filtering)
 pring Sentinel is designed to be highly flexible. You can create a custom-sentinel-rules.xml file in your project root to override defaults, ignore legacy folders, and tailor the audit strictly to your needs.
 
 First, update your pom.xml to point to your custom file:
