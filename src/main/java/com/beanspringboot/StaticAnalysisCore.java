@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 
 /**
  * Core engine for SpringSentinel static analysis.
- * v1.3.0: Integrated ResolvedConfig for hierarchical parameter management.
+ * v1.1.11: Integrated ResolvedConfig and Path Filtering support (Relative Paths).
  */
 public class StaticAnalysisCore {
     private final Log log;
@@ -91,15 +91,20 @@ public class StaticAnalysisCore {
         Properties props = loadProperties(resPath);
         executeAnalysisWithPropsOnly(props, this.issues, config);
 
-        // 5. Java Source Code Analysis
+     // 5. Java Source Code Analysis
         if (Files.exists(javaPath)) {
             log.info("Scanning Java source files with " + config.getActiveRules().size() + " active rules...");
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java")).forEach(path -> {
                     try {
                         CompilationUnit cu = StaticJavaParser.parse(path);
-                        // runAllChecks ora è più pulito, non serve passare maxDeps e pattern
-                        rules.runAllChecks(cu, path.getFileName().toString(), props);
+                        
+                        String fileRelativePath = baseDir.toPath().relativize(path).toString();
+                        
+       
+                        
+                        rules.runAllChecks(cu, fileRelativePath, props);
+                        
                     } catch (Exception e) {
                         log.error("Parsing failed for " + path.getFileName() + ": " + e.getMessage());
                     }
@@ -112,7 +117,6 @@ public class StaticAnalysisCore {
     }
 
     public void executeAnalysisWithPropsOnly(Properties props, List<AuditIssue> issuesList, ResolvedConfig config) {
-        // Recupera il pattern (potrebbe essere quello di default, quello del profilo o l'override del POM)
         String pattern = config.getParameter("SEC-001", "pattern", secretPattern);
 
         if (config.getActiveRules().contains("ARCH-OSIV")) checkOSIV(props, issuesList);

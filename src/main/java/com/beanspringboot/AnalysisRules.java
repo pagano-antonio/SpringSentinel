@@ -12,13 +12,14 @@ import org.apache.maven.model.Dependency;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.project.MavenProject;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.function.Consumer;
 
 /**
  * Core analysis logic for Spring Boot projects.
- * v1.3.0: Integrated ResolvedConfig for dynamic parameter management (XML + Overrides).
+ * v1.4.0: Integrated ResolvedConfig for dynamic parameter management and Path Filtering.
  */
 public class AnalysisRules {
 
@@ -40,6 +41,40 @@ public class AnalysisRules {
 
     private boolean isRuleActive(String id) {
         return config.getActiveRules().contains(id);
+    }
+
+    /**
+     * Verifica se una regola è attiva e se si applica al percorso del file
+     * basandosi sui parametri includePaths ed excludePaths.
+     */
+    private boolean isRuleApplicable(String ruleId, String filePath) {
+        // 1. La regola è attiva nel profilo?
+        if (!isRuleActive(ruleId)) {
+            return false;
+        }
+
+        // Il path va normalizzato per i controlli regex (sostituisce i \ di Windows con /)
+        String normalizedPath = filePath.replace("\\", "/");
+
+        // 2. Controllo includePaths (Se presente, il file DEVE fare match)
+        String includes = config.getParameter(ruleId, "includePaths", "");
+        if (!includes.isEmpty()) {
+            boolean matchesInclude = Arrays.stream(includes.split(","))
+                    .map(String::trim)
+                    .anyMatch(normalizedPath::matches);
+            if (!matchesInclude) return false; // Se non matcha, ignoriamo il file
+        }
+
+        // 3. Controllo excludePaths (Se presente e fa match, IGNORIAMO il file)
+        String excludes = config.getParameter(ruleId, "excludePaths", "");
+        if (!excludes.isEmpty()) {
+            boolean matchesExclude = Arrays.stream(excludes.split(","))
+                    .map(String::trim)
+                    .anyMatch(normalizedPath::matches);
+            if (matchesExclude) return false; // Se matcha un exclude, lo saltiamo
+        }
+
+        return true;
     }
 
     // --- ANALISI OLISTICA (POM.XML) ---
@@ -86,35 +121,35 @@ public class AnalysisRules {
 
     // --- ANALISI CODICE JAVA ---
 
-    public void runAllChecks(CompilationUnit cu, String fileName, Properties props) {
+    public void runAllChecks(CompilationUnit cu, String filePath, Properties props) {
         // Regole con parametri caricati dinamicamente da ResolvedConfig
-        if (isRuleActive("SEC-001")) {
+        if (isRuleApplicable("SEC-001", filePath)) {
             String pattern = config.getParameter("SEC-001", "pattern", ".*(password|secret|apikey|pwd|token).*");
-            checkHardcodedSecrets(cu, fileName, pattern);
+            checkHardcodedSecrets(cu, filePath, pattern);
         }
         
-        if (isRuleActive("ARCH-003")) {
+        if (isRuleApplicable("ARCH-003", filePath)) {
             int maxDeps = Integer.parseInt(config.getParameter("ARCH-003", "maxDependencies", "7"));
-            checkFatComponents(cu, fileName, maxDeps);
+            checkFatComponents(cu, filePath, maxDeps);
         }
 
-        // Regole standard
-        if (isRuleActive("PERF-001")) checkJPAEager(cu, fileName);
-        if (isRuleActive("PERF-002")) checkNPlusOne(cu, fileName);
-        if (isRuleActive("PERF-003")) checkBlockingTransactional(cu, fileName);
-        if (isRuleActive("RES-001")) checkManualThreads(cu, fileName);
-        if (isRuleActive("PERF-004")) checkCacheTTL(cu, fileName, props);
-        if (isRuleActive("RES-002")) checkTransactionTimeout(cu, fileName);
-        if (isRuleActive("MAINT-003")) checkMissingRepositoryAnnotation(cu, fileName);
-        if (isRuleActive("ARCH-002")) checkAutowiredFieldInjection(cu, fileName);
-        if (isRuleActive("SEC-002")) checkCrossOriginWildcard(cu, fileName);
-        if (isRuleActive("REST-004")) checkMissingResponseEntity(cu, fileName);
-        if (isRuleActive("ARCH-001")) checkBeanScopesAndThreadSafety(cu, fileName);
-        if (isRuleActive("ARCH-005")) checkLazyInjectionSmell(cu, fileName);
-        if (isRuleActive("ARCH-004")) checkManualInstantiation(cu, fileName);
+        // Regole standard filtrate per percorso
+        if (isRuleApplicable("PERF-001", filePath)) checkJPAEager(cu, filePath);
+        if (isRuleApplicable("PERF-002", filePath)) checkNPlusOne(cu, filePath);
+        if (isRuleApplicable("PERF-003", filePath)) checkBlockingTransactional(cu, filePath);
+        if (isRuleApplicable("RES-001", filePath)) checkManualThreads(cu, filePath);
+        if (isRuleApplicable("PERF-004", filePath)) checkCacheTTL(cu, filePath, props);
+        if (isRuleApplicable("RES-002", filePath)) checkTransactionTimeout(cu, filePath);
+        if (isRuleApplicable("MAINT-003", filePath)) checkMissingRepositoryAnnotation(cu, filePath);
+        if (isRuleApplicable("ARCH-002", filePath)) checkAutowiredFieldInjection(cu, filePath);
+        if (isRuleApplicable("SEC-002", filePath)) checkCrossOriginWildcard(cu, filePath);
+        if (isRuleApplicable("REST-004", filePath)) checkMissingResponseEntity(cu, filePath);
+        if (isRuleApplicable("ARCH-001", filePath)) checkBeanScopesAndThreadSafety(cu, filePath);
+        if (isRuleApplicable("ARCH-005", filePath)) checkLazyInjectionSmell(cu, filePath);
+        if (isRuleApplicable("ARCH-004", filePath)) checkManualInstantiation(cu, filePath);
         
-        if (isRuleActive("REST-001") || isRuleActive("REST-002") || isRuleActive("REST-003")) {
-            checkRestfulNaming(cu, fileName); 
+        if (isRuleApplicable("REST-001", filePath) || isRuleApplicable("REST-002", filePath) || isRuleApplicable("REST-003", filePath)) {
+            checkRestfulNaming(cu, filePath); 
         }
     }
 
@@ -127,17 +162,17 @@ public class AnalysisRules {
                     if (url.startsWith("/")) {
                         String type = "REST Design (Warning)";
 
-                        if (isRuleActive("REST-001") && (url.matches(".*[A-Z].*") || url.contains("_"))) {
+                        if (isRuleApplicable("REST-001", f) && (url.matches(".*[A-Z].*") || url.contains("_"))) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Non-standard URL naming", 
                                 "URL '" + url + "' should use kebab-case (lowercase with hyphens).");
                         }
-                        if (isRuleActive("REST-002") && !url.matches(".*/v[0-9]+.*") && !url.equals("/")) {
+                        if (isRuleApplicable("REST-002", f) && !url.matches(".*/v[0-9]+.*") && !url.equals("/")) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Missing API Versioning", 
                                 "URL '" + url + "' is missing a version prefix (e.g., /v1).");
                         }
-                        if (isRuleActive("REST-003") && isSingular(url)) {
+                        if (isRuleApplicable("REST-003", f) && isSingular(url)) {
                             addIssue(f, anno.getBegin().map(p -> p.line).orElse(0),
                                 type, "Singular Resource Name", 
                                 "Resource '" + url + "' should be plural (e.g., /users).");
