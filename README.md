@@ -190,9 +190,12 @@ Then, define your governance in custom-sentinel-rules.xml:
     </profiles>
 </spring-sentinel>
 ```
-Audit Rules & Analyzed Cases
+# Audit Rules & Analyzed Cases
+This list details every check performed by the static analysis engine, the associated Rule IDs (used for XML profile configuration), and the underlying detection logic.
 ⚡ Performance & Database
-PERF-001 (JPA Eager Fetching): Scans for FetchType.EAGER in JPA entities to prevent unnecessary memory overhead and performance degradation.
+These checks focus on optimizing database interactions and preventing resource exhaustion.
+
+PERF-001 (JPA Eager Fetching): Scans JPA entities for FetchType.EAGER. It aims to prevent unnecessary loading of complex object graphs, which causes significant memory overhead and performance degradation.
 
 PERF-002 (N+1 Query Potential): Identifies collection getters called inside loops (for, forEach), a common cause of database performance issues.
 
