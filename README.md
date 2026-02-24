@@ -73,62 +73,6 @@ Build Tool: Maven 3.6.0+.
 Distributed under the Apache License 2.0.
 
 ## Audit Rules & Analyzed Cases
-
-⚡ Performance & Database
-
-JPA Eager Fetching Detection: Scans for FetchType.EAGER in JPA entities to prevent unnecessary memory overhead and performance degradation.
-
-N+1 Query Potential: Identifies collection getters called inside loops (for, forEach), a common cause of database performance issues.
-
-Blocking Calls in Transactions: Detects blocking I/O or network calls (e.g., RestTemplate, Thread.sleep) within @Transactional methods to prevent connection pool exhaustion.
-
-Cache TTL Configuration: Verifies that methods annotated with @Cacheable have a corresponding Time-To-Live (TTL) defined in the application properties to avoid stale data.
-
-
-🔐 Security: 
-
-Hardcoded Secrets Scanner: Checks class fields and properties for variable names matching sensitive patterns (e.g., password, apikey, token) that do not use environment variable placeholders.
-
-Insecure CORS Policy: Flags the use of the "*" wildcard in @CrossOrigin annotations, which is a significant security risk for production APIs.
-
-Exposed Repositories: Warns if spring-boot-starter-data-rest is included, as it automatically exposes repositories without explicit security configurations.
-
-
-🏗️ Architecture & Thread Safety
-
-Singleton Thread Safety (Lombok-aware): Detects mutable state in Singleton beans.
-
-Field Injection Anti-pattern: Flags the use of @Autowired on private fields, encouraging Constructor Injection for better testability and immutability.
-
-Fat Components Detection: Monitors the number of dependencies in a single class. If it exceeds the configured limit, it suggests refactoring into smaller, focused services.
-
-Manual Bean Instantiation: Detects the use of the new keyword for classes that should be managed by the Spring Context (Services, Repositories, Components).
-
-Lazy Injection Smell: Identifies @Lazy combined with @Autowired, often used as a workaround for circular dependencies.
-
-
-🌐 REST API Governance (New in v1.2.0)
-
-URL Kebab-case Enforcement: Ensures endpoint URLs follow the kebab-case convention (e.g., /user-profiles) instead of camelCase or snake_case.
-
-API Versioning Check: Alerts if an endpoint is missing a versioning prefix (e.g., /v1/), which is essential for long-term API maintenance.
-
-Resource Pluralization: Suggests using plural names for REST resources (e.g., /users instead of /user) to follow standard REST design.
-
-Missing ResponseEntity: Encourages returning ResponseEntity<T> in Controllers to properly handle and communicate HTTP status codes.
-
-
-🛠️ Build & Project Maintenance
-
-Spring Boot Version Audit: Warns if the project is still using Spring Boot 2.x and recommends upgrading to 3.x for Jakarta EE compatibility.
-
-Missing Production Plugins: Checks for the spring-boot-maven-plugin, which is required for packaging executable artifacts.
-
-Repository Best Practices: Ensures that data access interfaces are correctly annotated with @Repository for proper exception translation.
-
-
-
-## Audit Rules & Analyzed Cases
 This list details every check performed by the static analysis engine, the associated Rule IDs (used for XML profile configuration), and the underlying detection logic.
 
 ⚡ Performance & Database: These checks focus on optimizing database interactions and preventing resource exhaustion.
@@ -283,8 +227,8 @@ First, update your pom.xml to point to your custom file:
 				</configuration>
 			</plugin>
 ```
-By setting <customRules>${project.basedir}/src/main/resources/custom-sentinel-rules.xml</customRules>, you are telling the plugin to ignore its built-in default-rules.xml and load the logic from a local file in your project's resources.
-${project.basedir}/src/main/resources/custom-sentinel-rules.xml</customRules> is path of your custom file.
+By setting ${project.basedir}/src/main/resources/custom-sentinel-rules.xml, you are telling the plugin to ignore its built-in default-rules.xml and load the logic from a local file in your project's resources.
+
 Then, define your governance in custom-sentinel-rules.xml, for example:
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
