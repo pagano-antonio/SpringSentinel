@@ -127,69 +127,7 @@ Missing Production Plugins: Checks for the spring-boot-maven-plugin, which is re
 Repository Best Practices: Ensures that data access interfaces are correctly annotated with @Repository for proper exception translation.
 
 
-## Configuration 
-ConfigurationSpringSentinel is designed to be flexible. You can customize the audit thresholds and security patterns by adding a <configuration> block to the plugin declaration in your pom.xml.Available ParametersParameterDefault ValueDescriptionmaxDependencies7The maximum number of allowed dependencies (constructor params + injected fields) before a "Fat Component" warning is triggered.secretPattern.*(password|secret|apikey|pwd|token).*A regular expression used to scan field names and properties for potential hardcoded sensitive data.
 
-## Custom XML Profiles: 
-Define your own rulesets. Extend built-in profiles (security-only, standard, strict) and <include> or <exclude> specific rules to match your company's guidelines.
-Granular Path Filtering (Regex): Apply rules only to specific modules or ignore legacy directories using includePaths and excludePaths.
-Parameter Overrides: Fine-tune rule behaviors (like dependency limits or secret regex patterns) on a per-profile basis.
-Smart Relative Paths: Reports now display the full relative path of the analyzed files (e.g., src/main/java/...) for immediate issue localization.
-
-
-## Advanced Configuration (Custom Rules & Path Filtering)
-pring Sentinel is designed to be highly flexible. You can create a custom-sentinel-rules.xml file in your project root to override defaults, ignore legacy folders, and tailor the audit strictly to your needs.
-
-First, update your pom.xml to point to your custom file:
-
-```xml
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-
-			<plugin>
-				<groupId>io.github.pagano-antonio</groupId>
-				<artifactId>SpringSentinel</artifactId>
-				<version>1.1.11</version>
-				<executions>
-					<execution>
-						<phase>verify</phase>
-						<goals>
-							<goal>audit</goal>
-						</goals>
-					</execution>
-				</executions>
-				<configuration>
-					<customRules>
-						${project.basedir}/src/main/resources/custom-sentinel-rules.xml</customRules>
-					<profile>my-company-profile</profile>
-				</configuration>
-			</plugin>
-```
-
-Then, define your governance in custom-sentinel-rules.xml:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<spring-sentinel>
-    <profiles>
-        <profile id="my-company-profile" extends="standard">
-            <name>Company Custom Profile</name>
-            <description>Standard rules adapted for our legacy codebase.</description>
-            
-            <exclude rule="ARCH-002" />
-            
-            <include rule="REST-004" />
-            
-            <override rule="ARCH-003" param="maxDependencies" value="15" />
-            
-            <override rule="ARCH-003" param="excludePaths" value=".*(/legacy/|/test/).*" />
-
-            <override rule="REST-004" param="includePaths" value=".*/controller/.*" />
-        </profile>
-    </profiles>
-</spring-sentinel>
-```
 ## Audit Rules & Analyzed Cases
 This list details every check performed by the static analysis engine, the associated Rule IDs (used for XML profile configuration), and the underlying detection logic.
 
@@ -242,6 +180,180 @@ MAINT-001 (Spring Boot Version Audit): Warns if the project is still using Sprin
 MAINT-002 (Missing Production Plugins): Checks for the spring-boot-maven-plugin, which is required for packaging executable artifacts.
 
 MAINT-003 (Repository Best Practices): Ensures that data access interfaces are correctly annotated with @Repository for proper exception translation.
+
+## Configuration 
+SpringSentinel uses a hierarchical profile system to let you choose the level of "strictness" for your project. By selecting a profile, you activate a specific set of rules, allowing you to focus on critical security issues or enforce a comprehensive architectural standard.
+
+### Profile Standard
+
+1. Security First (security-only): This profile is designed for legacy projects or high-velocity environments where you want to ensure safety without changing the coding style or architectural patterns.
+
+Logic: It only triggers rules related to data leaks and insecure configurations.
+
+Rules Included:
+
+SEC-001: Hardcoded Secrets Scanner
+
+SEC-002: Insecure CORS Policy (* wildcard)
+
+SEC-003: Exposed Data REST Repositories
+
+2. Standard Spring Health (standard)
+Focus: Security + Performance + Maintenance.
+Inheritance: Extends security-only.
+This is the recommended profile for most production applications. it balances risk prevention with code quality without being overly pedantic about naming conventions.
+
+Logic: It ensures the application is secure, doesn't leak database connections, and follows modern Spring Boot standards.
+
+Added Rules:
+
+PERF-001 to PERF-004: All database and caching performance checks.
+
+ARCH-001: Singleton Thread Safety.
+
+ARCH-002: Field Injection Anti-pattern.
+
+RES-001 & RES-002: Resilience and Threading checks.
+
+MAINT-001 to MAINT-003: Versioning and best practices.
+
+ 3. Full Governance (strict)
+Focus: Maximum Consistency & Best Practices.
+Inheritance: Extends standard.
+This is the default profile if none is specified. It is ideal for new projects (Greenfield) where maintaining a perfect "Clean Code" standard is a priority.
+
+Logic: It enforces strict RESTful naming, architectural boundaries, and detects even minor code smells.
+
+Added Rules:
+
+ARCH-003: Fat Components Detection (Sustains modularity).
+
+ARCH-004: Manual Bean Instantiation.
+
+ARCH-005: Lazy Injection Smell.
+
+REST-001 to REST-004: All REST API Governance rules (Kebab-case, pluralization, versioning).
+
+### How to Use Profiles
+A. In your pom.xml
+You can define the profile globally for your project within the plugin configuration block:
+
+```xml
+<plugin>
+    <groupId>io.github.pagano-antonio</groupId>
+    <artifactId>SpringSentinel</artifactId>
+    <version>1.1.11</version>
+    <configuration>
+        <profile>standard</profile> 
+    </configuration>
+</plugin>
+```
+
+### Custom XML Profiles: 
+Define your own rulesets. Extend built-in profiles (security-only, standard, strict) and <include> or <exclude> specific rules to match your company's guidelines.
+Granular Path Filtering (Regex): Apply rules only to specific modules or ignore legacy directories using includePaths and excludePaths.
+Parameter Overrides: Fine-tune rule behaviors (like dependency limits or secret regex patterns) on a per-profile basis.
+Smart Relative Paths: Reports now display the full relative path of the analyzed files (e.g., src/main/java/...) for immediate issue localization.
+ You can create a custom-sentinel-rules.xml file in your project root to override defaults, ignore legacy folders, and tailor the audit strictly to your needs.
+
+First, update your pom.xml to point to your custom file:
+
+```xml
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+
+			<plugin>
+				<groupId>io.github.pagano-antonio</groupId>
+				<artifactId>SpringSentinel</artifactId>
+				<version>1.1.11</version>
+				<executions>
+					<execution>
+						<phase>verify</phase>
+						<goals>
+							<goal>audit</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<customRules>
+						${project.basedir}/src/main/resources/custom-sentinel-rules.xml</customRules>
+					<profile>my-company-profile</profile>
+				</configuration>
+			</plugin>
+```
+By setting <customRules>${project.basedir}/src/main/resources/custom-sentinel-rules.xml</customRules>, you are telling the plugin to ignore its built-in default-rules.xml and load the logic from a local file in your project's resources.
+${project.basedir}/src/main/resources/custom-sentinel-rules.xml</customRules> is path of your custom file.
+Then, define your governance in custom-sentinel-rules.xml, for example:
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<spring-sentinel>
+    <profiles>
+        <profile id="my-company-profile" extends="standard">
+            <name>Company Custom Profile</name>
+            <description>Standard rules adapted for our legacy codebase.</description>
+            
+            <exclude rule="ARCH-002" />
+            
+            <include rule="REST-004" />
+            
+            <override rule="ARCH-003" param="maxDependencies" value="15" />
+            
+            <override rule="ARCH-003" param="excludePaths" value=".*(/legacy/|/test/).*" />
+
+            <override rule="REST-004" param="includePaths" value=".*/controller/.*" />
+        </profile>
+    </profiles>
+</spring-sentinel>
+```
+in this casa we have:
+1. Profile Inheritance (extends="standard")
+The attribute extends="standard" is the foundation of this configuration.
+
+What it does: It imports all the rules active in the built-in standard profile (Security + Performance + basic Architecture).
+
+Why it's useful: You don't have to list 15+ rules manually; you start with a solid baseline and only declare the differences.
+
+2. Rule Exclusion (<exclude rule="ARCH-002" />)
+Target: ARCH-002 (Field Injection Anti-pattern).
+
+Action: This specific check is disabled.
+
+Use Case: In a legacy codebase, you might have thousands of @Autowired fields. Fixing them all at once is impossible, so you "silence" the rule to avoid noise in your reports until you are ready to refactor.
+
+3. Rule Inclusion (<include rule="REST-004" />)
+Target: REST-004 (Missing ResponseEntity).
+
+Action: Activates this specific rule even though it is not part of the standard base profile (it's normally in strict).
+
+Use Case: You want to enforce better HTTP status code management immediately, even if the rest of your API naming isn't perfect yet.
+
+4. Parameter Overrides (<override ... />)
+This is the most powerful part of the file. It changes how a specific rule behaves without touching the Java code.
+
+A. Tuning Thresholds (ARCH-003)
+XML
+<override rule="ARCH-003" param="maxDependencies" value="15" />
+Default: Usually 7.
+
+New Value: 15.
+
+Logic: You are allowing "fatter" components. This acknowledges that legacy services often have many dependencies, preventing the report from being flooded with "Fat Component" warnings.
+
+B. Path Filtering (excludePaths)
+XML
+<override rule="ARCH-003" param="excludePaths" value=".*(/legacy/|/test/).*" />
+Logic: Tells the engine to ignore any file located in a /legacy/ or /test/ folder when checking for dependency counts.
+
+Use Case: You only want to enforce modularity on new code, leaving old or testing modules alone.
+
+C. Targeted Analysis (includePaths)
+XML
+<override rule="REST-004" param="includePaths" value=".*/controller/.*" />
+Logic: Restricts the "Missing ResponseEntity" check exclusively to classes within a controller package.
+
+Use Case: Prevents the rule from running on internal helper classes that might look like controllers but aren't intended to be public APIs.
 
 
 
