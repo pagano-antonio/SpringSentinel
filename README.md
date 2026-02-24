@@ -85,7 +85,7 @@ Blocking Calls in Transactions: Detects blocking I/O or network calls (e.g., Res
 Cache TTL Configuration: Verifies that methods annotated with @Cacheable have a corresponding Time-To-Live (TTL) defined in the application properties to avoid stale data.
 
 
-🔐 Security
+🔐 Security: 
 
 Hardcoded Secrets Scanner: Checks class fields and properties for variable names matching sensitive patterns (e.g., password, apikey, token) that do not use environment variable placeholders.
 
@@ -203,14 +203,16 @@ PERF-003 (Blocking Calls in Transactions): Detects blocking I/O or network calls
 
 PERF-004 (Cache TTL Configuration): Verifies that methods annotated with @Cacheable have a corresponding Time-To-Live (TTL) defined in the application properties to avoid stale data.
 
-🔐 Security
+🔐 Security: Focused on protecting sensitive data and ensuring secure endpoint configurations.
+
 SEC-001 (Hardcoded Secrets Scanner): Checks class fields and properties for variable names matching sensitive patterns (e.g., password, apikey, token) that do not use environment variable placeholders.
 
 SEC-002 (Insecure CORS Policy): Flags the use of the "*" wildcard in @CrossOrigin annotations, which is a significant security risk for production APIs.
 
 SEC-003 (Exposed Repositories): Warns if spring-boot-starter-data-rest is included, as it automatically exposes repositories without explicit security configurations.
 
-🏗️ Architecture & Thread Safety
+🏗️ Architecture & Thread Safety: Rules to ensure code follows Spring Framework best practices and is safe for multi-threaded execution.
+
 ARCH-001 (Singleton Thread Safety): Detects mutable state in Singleton beans (Lombok-aware).
 
 ARCH-002 (Field Injection Anti-pattern): Flags the use of @Autowired on private fields, encouraging Constructor Injection for better testability and immutability.
@@ -223,7 +225,8 @@ ARCH-005 (Lazy Injection Smell): Identifies @Lazy combined with @Autowired, ofte
 
 RES-001 (Manual Thread Creation): Finds manual thread creation (new Thread()), suggesting managed @Async tasks instead.
 
-🌐 REST API Governance
+🌐 REST API Governance: Ensures that your APIs are consistent, versioned, and follow standard RESTful design principles.
+
 REST-001 (URL Kebab-case Enforcement): Ensures endpoint URLs follow the kebab-case convention (e.g., /user-profiles) instead of camelCase or snake_case.
 
 REST-002 (API Versioning Check): Alerts if an endpoint is missing a versioning prefix (e.g., /v1/), which is essential for long-term API maintenance.
@@ -232,7 +235,8 @@ REST-003 (Resource Pluralization): Suggests using plural names for REST resource
 
 REST-004 (Missing ResponseEntity): Encourages returning ResponseEntity<T> in Controllers to properly handle and communicate HTTP status codes.
 
-🛠️ Build & Project Maintenance
+🛠️ Build & Project Maintenance: Audits the general health of the Maven project and compliance with stable versions.
+
 MAINT-001 (Spring Boot Version Audit): Warns if the project is still using Spring Boot 2.x and recommends upgrading to 3.x for Jakarta EE compatibility.
 
 MAINT-002 (Missing Production Plugins): Checks for the spring-boot-maven-plugin, which is required for packaging executable artifacts.
