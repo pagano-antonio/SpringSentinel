@@ -190,7 +190,7 @@ Then, define your governance in custom-sentinel-rules.xml:
     </profiles>
 </spring-sentinel>
 ```
-# Audit Rules & Analyzed Cases
+## Audit Rules & Analyzed Cases
 This list details every check performed by the static analysis engine, the associated Rule IDs (used for XML profile configuration), and the underlying detection logic.
 
 ⚡ Performance & Database: These checks focus on optimizing database interactions and preventing resource exhaustion.
