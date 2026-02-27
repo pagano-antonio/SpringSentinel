@@ -101,8 +101,6 @@ public class StaticAnalysisCore {
                         
                         String fileRelativePath = baseDir.toPath().relativize(path).toString();
                         
-       
-                        
                         rules.runAllChecks(cu, fileRelativePath, props);
                         
                     } catch (Exception e) {
@@ -159,6 +157,14 @@ public class StaticAnalysisCore {
             }
         }
         return props;
+    }
+
+    /**
+     * NUOVO METODO: Restituisce la lista delle issue trovate per permettere
+     * al Mojo di valutare se interrompere la build (Build Breaker).
+     */
+    public List<AuditIssue> getIssues() {
+        return this.issues;
     }
 
     public static class AuditIssue {

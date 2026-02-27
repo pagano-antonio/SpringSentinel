@@ -26,7 +26,7 @@ public class RuleConfigLoader {
         Map<String, Map<String, String>> parameters = loadDefaultRuleParameters(defaultDoc);
         Set<String> activeRules = new HashSet<>();
         
-        log.info("[DEBUG-SENTINEL] Inizio risoluzione del profilo: " + profileId);
+        //log.info("[DEBUG-SENTINEL] Inizio risoluzione del profilo: " + profileId);
         applyProfile(defaultDoc, customDoc, profileId, activeRules, parameters);
 
         return new ResolvedConfig(activeRules, parameters);
@@ -61,7 +61,7 @@ public class RuleConfigLoader {
 
         String parent = profile.getAttribute("extends");
         if (parent != null && !parent.isEmpty()) {
-            log.info("[DEBUG-SENTINEL] Il profilo " + profileId + " estende " + parent);
+         //   log.info("[DEBUG-SENTINEL] Il profilo " + profileId + " estende " + parent);
             applyProfile(defaultDoc, customDoc, parent, activeRules, parameters);
         }
 
@@ -82,7 +82,7 @@ public class RuleConfigLoader {
             String paramName = o.getAttribute("param");
             String value = o.getAttribute("value");
 
-            log.info("[DEBUG-SENTINEL] Caricato override in " + profileId + " -> Rule: " + ruleId + " | Param: " + paramName + " = " + value);
+            //log.info("[DEBUG-SENTINEL] Caricato override in " + profileId + " -> Rule: " + ruleId + " | Param: " + paramName + " = " + value);
             parameters.computeIfAbsent(ruleId, k -> new HashMap<>()).put(paramName, value);
         }
     }
