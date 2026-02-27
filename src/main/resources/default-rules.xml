@@ -41,6 +41,11 @@
             <name>Cache missing TTL</name>
             <rationale>Caches should have a TTL in application.properties to prevent stale data.</rationale>
         </rule>
+        
+        <rule id="PERF-005" severity="CRITICAL">
+            <name>Lombok @Data or @EqualsAndHashCode on @Entity</name>
+            <rationale>Using @Data or @EqualsAndHashCode on JPA entities is a severe anti-pattern. It can cause infinite loops in bidirectional relationships and break Hibernate Sets. Use only @Getter and @Setter.</rationale>
+        </rule>
 
         <rule id="ARCH-001" severity="HIGH">
             <name>Mutable state in Singleton</name>
@@ -114,7 +119,8 @@
             <include rule="SEC-001" />
             <include rule="SEC-002" />
             <include rule="SEC-003" />
-            <include rule="SEC-004" /> </profile>
+            <include rule="SEC-004" /> 
+        </profile>
 
         <profile id="standard" extends="security-only">
             <name>Standard Spring Health</name>
@@ -123,7 +129,7 @@
             <include rule="PERF-002" />
             <include rule="PERF-003" />
             <include rule="PERF-004" />
-            <include rule="ARCH-001" />
+            <include rule="PERF-005" /> <include rule="ARCH-001" />
             <include rule="ARCH-002" />
             <include rule="RES-001" />
             <include rule="RES-002" />
