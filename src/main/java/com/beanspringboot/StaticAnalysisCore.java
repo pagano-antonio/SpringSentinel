@@ -17,7 +17,7 @@ import java.util.stream.Stream;
 
 /**
  * Core engine for SpringSentinel static analysis.
- * v1.1.11: Integrated ResolvedConfig and Path Filtering support (Relative Paths).
+ * v1.3.0: Integrated ResolvedConfig, Path Filtering (Relative Paths), Build Breaker, and Actuator Security check.
  */
 public class StaticAnalysisCore {
     private final Log log;
@@ -91,7 +91,7 @@ public class StaticAnalysisCore {
         Properties props = loadProperties(resPath);
         executeAnalysisWithPropsOnly(props, this.issues, config);
 
-     // 5. Java Source Code Analysis
+        // 5. Java Source Code Analysis
         if (Files.exists(javaPath)) {
             log.info("Scanning Java source files with " + config.getActiveRules().size() + " active rules...");
             try (Stream<Path> paths = Files.walk(javaPath)) {
@@ -120,6 +120,9 @@ public class StaticAnalysisCore {
         if (config.getActiveRules().contains("ARCH-OSIV")) checkOSIV(props, issuesList);
         if (config.getActiveRules().contains("SEC-001")) checkPropertiesSecrets(props, issuesList, pattern);
         if (config.getActiveRules().contains("SEC-H2")) checkCriticalProperties(props, issuesList);
+        
+        // NUOVO CONTROLLO: Actuator Security
+        if (config.getActiveRules().contains("SEC-004")) checkActuatorExposure(props, issuesList);
     }
 
     private void checkOSIV(Properties p, List<AuditIssue> issuesList) {
@@ -143,6 +146,16 @@ public class StaticAnalysisCore {
         if ("true".equals(p.getProperty("spring.h2.console.enabled"))) {
             issuesList.add(new AuditIssue("application.properties", 0, "Security", "H2 Console Enabled", 
                 "H2 Console is active. Disable it in production."));
+        }
+    }
+
+    // NUOVO METODO: Analizza l'esposizione degli endpoint di Actuator
+    private void checkActuatorExposure(Properties p, List<AuditIssue> issuesList) {
+        String exposure = p.getProperty("management.endpoints.web.exposure.include");
+        
+        if (exposure != null && exposure.contains("*")) {
+            issuesList.add(new AuditIssue("application.properties", 0, "Security", "Actuator Endpoints Exposed", 
+                "Wildcard '*' used in 'management.endpoints.web.exposure.include'. This exposes sensitive data like heap dumps. Specify only required endpoints (e.g., health,info)."));
         }
     }
 

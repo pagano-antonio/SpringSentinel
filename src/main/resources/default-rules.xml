@@ -20,6 +20,11 @@
             <rationale>spring-boot-starter-data-rest automatically exposes all repositories. Ensure they are secured.</rationale>
         </rule>
 
+        <rule id="SEC-004" severity="CRITICAL">
+            <name>Actuator Endpoints Exposed</name>
+            <rationale>Using '*' in management.endpoints.web.exposure.include exposes sensitive internal metrics, env vars, and heap dumps. Specify only required endpoints (e.g., health,info).</rationale>
+        </rule>
+
         <rule id="PERF-001" severity="HIGH">
             <name>EAGER Fetching detected</name>
             <rationale>JPA Eager fetching causes performance overhead. Switch to LAZY and use 'join fetch'.</rationale>
@@ -109,7 +114,7 @@
             <include rule="SEC-001" />
             <include rule="SEC-002" />
             <include rule="SEC-003" />
-        </profile>
+            <include rule="SEC-004" /> </profile>
 
         <profile id="standard" extends="security-only">
             <name>Standard Spring Health</name>
