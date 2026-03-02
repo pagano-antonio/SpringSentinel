@@ -18,7 +18,7 @@ Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files f
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.1.11</version>
+    <version>1.1.12</version>
     <executions>
         <execution>
             <phase>verify</phase> 
@@ -186,7 +186,7 @@ You can define the profile globally for your project within the plugin configura
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.1.11</version>
+    <version>1.1.12</version>
     <configuration>
         <profile>standard</profile> 
     </configuration>
@@ -211,7 +211,7 @@ First, update your pom.xml to point to your custom file:
 			<plugin>
 				<groupId>io.github.pagano-antonio</groupId>
 				<artifactId>SpringSentinel</artifactId>
-				<version>1.1.11</version>
+				<version>1.1.12</version>
 				<executions>
 					<execution>
 						<phase>verify</phase>
