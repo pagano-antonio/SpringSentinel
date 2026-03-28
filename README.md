@@ -11,6 +11,10 @@ Architecture Integrity: Finds manual thread creation (new Thread()) and Prototyp
 Smart Reporting: Generates intuitive HTML Dashboards and structured JSON files for CI/CD integration.
 
 
+## Complete Documentation
+https://medium.com/@antoniopagano/how-to-use-springsentinel-245a3d2c433c
+
+
 
 ## 🚀 Quick Start
 ### 21. Add the Plugin
