@@ -1,19 +1,21 @@
 package com.beanspringboot;
 
-import com.github.javaparser.ParserConfiguration;
-import com.github.javaparser.StaticJavaParser;
-import com.github.javaparser.ast.CompilationUnit;
-import org.apache.maven.plugin.logging.Log;
-import org.apache.maven.project.MavenProject;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.stream.Stream;
+
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.MavenProject;
+
+import com.github.javaparser.ParserConfiguration;
+import com.github.javaparser.StaticJavaParser;
+import com.github.javaparser.ast.CompilationUnit;
 
 /**
  * Core engine for SpringSentinel static analysis.
@@ -43,11 +45,21 @@ public class StaticAnalysisCore {
     private void configureJavaParser() {
         ParserConfiguration config = new ParserConfiguration();
         try {
-            config.setLanguageLevel(ParserConfiguration.LanguageLevel.valueOf("JAVA_21"));
-            log.info("JavaParser configured for Language Level: JAVA_21");
-        } catch (IllegalArgumentException e) {
+            // Recupera dinamicamente tutti i livelli supportati
+            ParserConfiguration.LanguageLevel[] levels = ParserConfiguration.LanguageLevel.values();
+            
+            // Filtriamo "RAW" e prendiamo il livello Java più alto disponibile
+            ParserConfiguration.LanguageLevel maxLevel = Arrays.stream(levels)
+                    .filter(l -> l.name().startsWith("JAVA_"))
+                    .reduce((first, second) -> second) // Prende l'ultimo elemento
+                    .orElse(ParserConfiguration.LanguageLevel.JAVA_17);
+
+            config.setLanguageLevel(maxLevel);
+            log.info("JavaParser configured for highest supported Language Level: " + maxLevel.name());
+            
+        } catch (Exception e) {
             config.setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
-            log.warn("JAVA_21 not found in constants. Falling back to JAVA_17.");
+            log.warn("Failed to determine max Java level. Falling back to JAVA_17.");
         }
         StaticJavaParser.setConfiguration(config);
     }
