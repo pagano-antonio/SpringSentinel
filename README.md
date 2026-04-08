@@ -22,7 +22,7 @@ https://medium.com/@antoniopagano/how-to-use-springsentinel-245a3d2c433c
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>SpringSentinel</artifactId>
-    <version>1.1.12</version>
+    <version>1.1.13</version>
     <executions>
         <execution>
             <phase>verify</phase> 
