@@ -13,6 +13,7 @@
 .settings/
 .classpath
 .project
+.factorypath
 
 # IDE - IntelliJ IDEA
 .idea/
@@ -36,6 +37,10 @@ replay_pid*
 
 # Build (Maven)
 target/
+
+# Build (Gradle)
+.gradle/
+build/
 
 # Reports generati dal tool (sia nel root che in target)
 spring-sentinel-reports/

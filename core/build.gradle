@@ -1,0 +1,68 @@
+import groovy.xml.XmlSlurper
+
+plugins {
+    id "java-library"
+    id "maven-publish"
+}
+
+def parentPom = new XmlSlurper().parse(file("../pom.xml"))
+
+group = parentPom.groupId.text()
+version = parentPom.version.text()
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+    withSourcesJar()
+    withJavadocJar()
+}
+
+base {
+    archivesName = "spring-sentinel-core"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api "com.github.javaparser:javaparser-symbol-solver-core:3.28.0"
+    api "org.slf4j:slf4j-api:2.0.7"
+
+    testImplementation "org.junit.jupiter:junit-jupiter:5.10.0"
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            pom {
+                name = "SpringSentinel Core"
+                description = "Core engine for SpringSentinel static analysis"
+                url = "https://github.com/pagano-antonio/SpringSentinel"
+                licenses {
+                    license {
+                        name = "Apache License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+                developers {
+                    developer {
+                        name = "Antonio Pagano"
+                        email = "pagano.antonio77@gmail.com"
+                    }
+                }
+                scm {
+                    connection = "scm:git:git://github.com/pagano-antonio/SpringSentinel.git"
+                    developerConnection = "scm:git:ssh://github.com:pagano-antonio/SpringSentinel.git"
+                    url = "https://github.com/pagano-antonio/SpringSentinel/tree/main"
+                }
+            }
+        }
+    }
+}

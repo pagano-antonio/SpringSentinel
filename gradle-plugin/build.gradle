@@ -1,0 +1,67 @@
+import groovy.xml.XmlSlurper
+
+plugins {
+    id "com.gradle.plugin-publish" version "2.1.1"
+}
+
+def parentPom = new XmlSlurper().parse(file("../pom.xml"))
+
+group = parentPom.groupId.text()
+version = parentPom.version.text()
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+dependencies {
+    implementation findProject(":core") ?: "io.github.pagano-antonio:spring-sentinel-core:${version}"
+}
+
+gradlePlugin {
+    website = "https://github.com/pagano-antonio/SpringSentinel"
+    vcsUrl = "https://github.com/pagano-antonio/SpringSentinel"
+
+    plugins {
+        springSentinel {
+            id = "io.github.pagano-antonio.spring-sentinel"
+            implementationClass = "com.beanspringboot.gradle.SpringSentinelGradlePlugin"
+            displayName = "SpringSentinel Gradle Plugin"
+            description = "Static analysis for Spring Boot projects using the SpringSentinel core engine."
+            tags.set(["spring", "spring-boot", "static-analysis", "security", "architecture"])
+            compatibility(it) {
+                features {
+                    configurationCache = false
+                }
+            }
+        }
+    }
+}
+
+publishing {
+    publications.withType(MavenPublication).configureEach {
+        pom {
+            name = "SpringSentinel Gradle Plugin"
+            description = "Gradle plugin for SpringSentinel static analysis"
+            url = "https://github.com/pagano-antonio/SpringSentinel"
+            licenses {
+                license {
+                    name = "Apache License, Version 2.0"
+                    url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                }
+            }
+            developers {
+                developer {
+                    name = "Antonio Pagano"
+                    email = "pagano.antonio77@gmail.com"
+                }
+            }
+            scm {
+                connection = "scm:git:git://github.com/pagano-antonio/SpringSentinel.git"
+                developerConnection = "scm:git:ssh://github.com:pagano-antonio/SpringSentinel.git"
+                url = "https://github.com/pagano-antonio/SpringSentinel/tree/main"
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+import groovy.xml.XmlSlurper
+
+plugins {
+    id "base"
+}
+
+def parentPom = new XmlSlurper().parse(file("pom.xml"))
+
+group = parentPom.groupId.text()
+version = parentPom.version.text()
+
+subprojects {
+    group = rootProject.group
+    version = rootProject.version
+}

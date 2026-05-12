@@ -1,0 +1,20 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = "spring-sentinel-gradle-plugin"
+includeBuild("../core") {
+    dependencySubstitution {
+        substitute(module("io.github.pagano-antonio:spring-sentinel-core")).using(project(":"))
+    }
+}
