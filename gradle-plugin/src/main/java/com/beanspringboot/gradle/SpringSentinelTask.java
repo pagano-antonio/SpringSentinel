@@ -19,6 +19,7 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+@DisableCachingByDefault(because = "Static analysis reads project source files and build metadata dynamically.")
 public abstract class SpringSentinelTask extends DefaultTask {
 
     @Internal

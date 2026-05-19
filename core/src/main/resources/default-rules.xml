@@ -47,6 +47,26 @@
             <rationale>Using @Data or @EqualsAndHashCode on JPA entities is a severe anti-pattern. It can cause infinite loops in bidirectional relationships and break Hibernate Sets. Use only @Getter and @Setter.</rationale>
         </rule>
 
+        <rule id="DB-001" severity="WARNING">
+            <name>Missing Hikari pool configuration</name>
+            <rationale>HikariCP is being used with implicit defaults. While Spring Boot provides sensible defaults, production workloads often require explicit tuning for connection pool sizing and timeout behavior.</rationale>
+        </rule>
+
+        <rule id="DB-002" severity="WARNING">
+            <name>Potential HikariCP Oversizing</name>
+            <rationale>Very large HikariCP pools can increase context switching, lock contention, and database latency. Prefer explicit sizing based on workload and database capacity.</rationale>
+        </rule>
+
+        <rule id="DB-003" severity="WARNING">
+            <name>Dynamic HikariCP pool sizing</name>
+            <rationale>HikariCP generally performs best with a fixed-size pool. A minimum-idle value different from maximum-pool-size can force connection creation under load.</rationale>
+        </rule>
+
+        <rule id="DB-004" severity="WARNING">
+            <name>Misaligned Leak Detection Threshold</name>
+            <rationale>Leak detection thresholds below transaction or query timeouts can produce misleading connection leak diagnostics for valid long-running operations.</rationale>
+        </rule>
+
         <rule id="ARCH-001" severity="HIGH">
             <name>Mutable state in Singleton</name>
             <rationale>Spring Beans are Singletons. Avoid mutable fields or use Lombok @FieldDefaults(makeFinal=true).</rationale>
@@ -129,7 +149,12 @@
             <include rule="PERF-002" />
             <include rule="PERF-003" />
             <include rule="PERF-004" />
-            <include rule="PERF-005" /> <include rule="ARCH-001" />
+            <include rule="PERF-005" />
+            <include rule="DB-001" />
+            <include rule="DB-002" />
+            <include rule="DB-003" />
+            <include rule="DB-004" />
+            <include rule="ARCH-001" />
             <include rule="ARCH-002" />
             <include rule="RES-001" />
             <include rule="RES-002" />

@@ -18,6 +18,19 @@ import com.github.javaparser.ast.CompilationUnit;
  */
 public class StaticAnalysisCore {
 
+    private static final List<String> RECOMMENDED_HIKARI_POOL_PROPERTIES = List.of(
+            "spring.datasource.hikari.maximum-pool-size",
+            "spring.datasource.hikari.connection-timeout",
+            "spring.datasource.hikari.max-lifetime",
+            "spring.datasource.hikari.minimum-idle"
+    );
+    private static final List<String> SERVLET_THREAD_PROPERTIES = List.of(
+            "server.tomcat.max-threads",
+            "server.tomcat.threads.max",
+            "server.undertow.threads.worker",
+            "server.jetty.threads.max"
+    );
+
     private final Consumer<String> log;
     private ProjectInfo projectInfo;
 
@@ -146,6 +159,18 @@ public class StaticAnalysisCore {
 
         if (config.getActiveRules().contains("SEC-004"))
             checkActuatorExposure(props, issuesList);
+
+        if (config.getActiveRules().contains("DB-001"))
+            checkMissingHikariPoolConfiguration(props, issuesList);
+
+        if (config.getActiveRules().contains("DB-002"))
+            checkPotentialHikariOversizing(props, issuesList);
+
+        if (config.getActiveRules().contains("DB-003"))
+            checkDynamicHikariPoolSizing(props, issuesList);
+
+        if (config.getActiveRules().contains("DB-004"))
+            checkMisalignedLeakDetectionThreshold(props, issuesList);
     }
 
     private void checkOSIV(Properties p, List<AuditIssue> issuesList) {
@@ -193,6 +218,201 @@ public class StaticAnalysisCore {
                     "application.properties", 0,
                     "Security", "Actuator Exposed",
                     "Avoid wildcard exposure"));
+        }
+    }
+
+    private void checkMissingHikariPoolConfiguration(Properties p,
+                                                     List<AuditIssue> issuesList) {
+
+        boolean hasDatasource = hasAnyPropertyWithPrefix(p, "spring.datasource.");
+        boolean usesHikari = isExplicitHikariDatasource(p) || isImplicitHikariDatasource(p, hasDatasource);
+        boolean hasRecommendedHikariPoolConfig = RECOMMENDED_HIKARI_POOL_PROPERTIES.stream()
+                .anyMatch(p::containsKey);
+
+        if (hasDatasource && usesHikari && !hasRecommendedHikariPoolConfig) {
+            issuesList.add(new AuditIssue(
+                    "application.properties", 0,
+                    "Configuration",
+                    "HikariCP is being used with implicit defaults.",
+                    "While Spring Boot provides sensible defaults, production workloads often require explicit tuning for connection pool sizing and timeout behavior. Recommended properties: spring.datasource.hikari.maximum-pool-size, spring.datasource.hikari.connection-timeout, spring.datasource.hikari.max-lifetime, spring.datasource.hikari.minimum-idle. Avoid oversizing pools: more connections do not necessarily improve performance."));
+        }
+    }
+
+    private boolean isExplicitHikariDatasource(Properties p) {
+        String datasourceType = p.getProperty("spring.datasource.type", "");
+
+        return datasourceType.contains("com.zaxxer.hikari.HikariDataSource") ||
+                hasAnyPropertyWithPrefix(p, "spring.datasource.hikari.");
+    }
+
+    private boolean isImplicitHikariDatasource(Properties p, boolean hasDatasource) {
+        String datasourceType = p.getProperty("spring.datasource.type", "");
+
+        if (!datasourceType.isBlank() && !datasourceType.contains("com.zaxxer.hikari.HikariDataSource")) {
+            return false;
+        }
+
+        return hasDatasource && (hasHikariDependency() || projectInfo == null);
+    }
+
+    private boolean hasHikariDependency() {
+        if (projectInfo == null || projectInfo.dependencies == null) {
+            return false;
+        }
+
+        return projectInfo.dependencies.stream()
+                .filter(Objects::nonNull)
+                .map(String::toLowerCase)
+                .anyMatch(dep -> dep.contains("hikari") ||
+                        dep.equals("spring-boot-starter-jdbc") ||
+                        dep.equals("spring-boot-starter-data-jpa") ||
+                        dep.equals("spring-boot-starter-data-jdbc"));
+    }
+
+    private boolean hasAnyPropertyWithPrefix(Properties p, String prefix) {
+        return p.keySet().stream()
+                .map(Object::toString)
+                .anyMatch(key -> key.startsWith(prefix));
+    }
+
+    private void checkPotentialHikariOversizing(Properties p,
+                                                List<AuditIssue> issuesList) {
+
+        OptionalInt maxPoolSize = readPositiveInt(p, "spring.datasource.hikari.maximum-pool-size");
+
+        if (maxPoolSize.isEmpty()) {
+            return;
+        }
+
+        int poolSize = maxPoolSize.getAsInt();
+
+        if (poolSize > 100) {
+            issuesList.add(new AuditIssue(
+                    "application.properties", 0,
+                    "Configuration", "Potential HikariCP Oversizing",
+                    "Extremely large connection pool detected. This is often a sign of architecture or database contention issues."));
+        } else if (poolSize > 50) {
+            issuesList.add(new AuditIssue(
+                    "application.properties", 0,
+                    "Configuration", "Potential HikariCP Oversizing",
+                    "HikariCP creator recommends small pools. Oversized pools may increase contention and latency."));
+        }
+
+        readServletThreadCount(p).ifPresent(threadCount -> {
+            if (poolSize >= threadCount * 4) {
+                issuesList.add(new AuditIssue(
+                        "application.properties", 0,
+                        "Configuration", "Potential HikariCP Oversizing",
+                        "Pool size exceeds servlet thread count by 4×. This may indicate oversizing."));
+            }
+        });
+    }
+
+    private OptionalInt readServletThreadCount(Properties p) {
+        return SERVLET_THREAD_PROPERTIES.stream()
+                .map(property -> readPositiveInt(p, property))
+                .filter(OptionalInt::isPresent)
+                .mapToInt(OptionalInt::getAsInt)
+                .findFirst();
+    }
+
+    private OptionalInt readPositiveInt(Properties p, String propertyName) {
+        String value = p.getProperty(propertyName);
+
+        if (value == null || value.isBlank()) {
+            return OptionalInt.empty();
+        }
+
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return parsed > 0 ? OptionalInt.of(parsed) : OptionalInt.empty();
+        } catch (NumberFormatException e) {
+            return OptionalInt.empty();
+        }
+    }
+
+    private void checkDynamicHikariPoolSizing(Properties p,
+                                              List<AuditIssue> issuesList) {
+
+        OptionalInt maximumPoolSize = readPositiveInt(p, "spring.datasource.hikari.maximum-pool-size");
+        OptionalInt minimumIdle = readPositiveInt(p, "spring.datasource.hikari.minimum-idle");
+
+        if (maximumPoolSize.isPresent() &&
+                minimumIdle.isPresent() &&
+                minimumIdle.getAsInt() != maximumPoolSize.getAsInt()) {
+            issuesList.add(new AuditIssue(
+                    "application.properties", 0,
+                    "Configuration", "Dynamic HikariCP pool sizing",
+                    "HikariCP works best with a fixed-size pool. Set spring.datasource.hikari.minimum-idle equal to spring.datasource.hikari.maximum-pool-size, or omit minimum-idle to let HikariCP use fixed-size behavior."));
+        }
+    }
+
+    private void checkMisalignedLeakDetectionThreshold(Properties p,
+                                                       List<AuditIssue> issuesList) {
+
+        OptionalLong leakDetectionThreshold = readPositiveLongMillis(p,
+                "spring.datasource.hikari.leak-detection-threshold",
+                "spring.datasource.hikari.leakDetectionThreshold");
+
+        if (leakDetectionThreshold.isEmpty()) {
+            return;
+        }
+
+        OptionalLong effectiveTimeout = readEffectiveTimeoutMillis(p);
+
+        if (effectiveTimeout.isEmpty()) {
+            return;
+        }
+
+        if (leakDetectionThreshold.getAsLong() < effectiveTimeout.getAsLong() * 0.8d) {
+            issuesList.add(new AuditIssue(
+                    "application.properties", 0,
+                    "Configuration",
+                    "Hikari leak detection threshold is lower than the configured transaction/query timeout.",
+                    "Valid long-running operations may be reported as connection leaks, producing misleading diagnostics. Suggested fix: Configure leakDetectionThreshold above the longest expected transaction or query timeout."));
+        }
+    }
+
+    private OptionalLong readEffectiveTimeoutMillis(Properties p) {
+        return Stream.of(
+                        readPositiveLongSeconds(p, "spring.transaction.default-timeout"),
+                        readPositiveLongMillis(p, "javax.persistence.query.timeout"),
+                        readPositiveLongSeconds(p, "hibernate.jdbc.timeout"))
+                .filter(OptionalLong::isPresent)
+                .mapToLong(OptionalLong::getAsLong)
+                .max();
+    }
+
+    private OptionalLong readPositiveLongMillis(Properties p, String... propertyNames) {
+        for (String propertyName : propertyNames) {
+            OptionalLong value = readPositiveLong(p, propertyName);
+            if (value.isPresent()) {
+                return value;
+            }
+        }
+
+        return OptionalLong.empty();
+    }
+
+    private OptionalLong readPositiveLongSeconds(Properties p, String propertyName) {
+        OptionalLong value = readPositiveLong(p, propertyName);
+        return value.isPresent()
+                ? OptionalLong.of(value.getAsLong() * 1000L)
+                : OptionalLong.empty();
+    }
+
+    private OptionalLong readPositiveLong(Properties p, String propertyName) {
+        String value = p.getProperty(propertyName);
+
+        if (value == null || value.isBlank()) {
+            return OptionalLong.empty();
+        }
+
+        try {
+            long parsed = Long.parseLong(value.trim());
+            return parsed > 0 ? OptionalLong.of(parsed) : OptionalLong.empty();
+        } catch (NumberFormatException e) {
+            return OptionalLong.empty();
         }
     }
 

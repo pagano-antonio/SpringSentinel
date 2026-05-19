@@ -22,7 +22,7 @@ https://medium.com/@antoniopagano/how-to-use-springsentinel-245a3d2c433c
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>spring-sentinel-maven-plugin</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1</version>
     <executions>
         <execution>
             <phase>verify</phase> 
@@ -48,7 +48,7 @@ mvn spring-sentinel:audit
 ### Gradle
 ```groovy
 plugins {
-    id "io.github.pagano-antonio.spring-sentinel" version "2.0.0"
+    id "io.github.pagano-antonio.spring-sentinel" version "2.0.1"
 }
 
 springSentinel {
@@ -116,6 +116,14 @@ PERF-002 (N+1 Query Potential): Identifies collection getters called inside loop
 PERF-003 (Blocking Calls in Transactions): Detects blocking I/O or network calls (e.g., RestTemplate, Thread.sleep) within @Transactional methods to prevent connection pool exhaustion.
 
 PERF-004 (Cache TTL Configuration): Verifies that methods annotated with @Cacheable have a corresponding Time-To-Live (TTL) defined in the application properties to avoid stale data.
+
+DB-001 (Missing Hikari Pool Configuration): Detects when HikariCP is used implicitly or explicitly without explicit pool tuning. It recommends configuring spring.datasource.hikari.maximum-pool-size, connection-timeout, max-lifetime, and minimum-idle, while avoiding oversized pools.
+
+DB-002 (Potential HikariCP Oversizing): Warns when spring.datasource.hikari.maximum-pool-size is above 50, reports extremely large pools above 100, and compares HikariCP pool size with configured servlet thread counts for Tomcat, Undertow, or Jetty.
+
+DB-003 (Dynamic HikariCP Pool Sizing): Warns when spring.datasource.hikari.minimum-idle is explicitly configured with a value different from maximum-pool-size. If minimum-idle is omitted, no issue is reported.
+
+DB-004 (Misaligned Leak Detection Threshold): Warns when HikariCP leakDetectionThreshold is lower than 80% of the effective transaction or query timeout, which can produce misleading leak diagnostics for valid long-running operations.
 
 🔐 Security: Focused on protecting sensitive data and ensuring secure endpoint configurations.
 
@@ -218,7 +226,7 @@ You can define the profile globally for your project within the plugin configura
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>spring-sentinel-maven-plugin</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1</version>
     <configuration>
         <profile>standard</profile> 
     </configuration>
@@ -243,7 +251,7 @@ First, update your pom.xml to point to your custom file:
 			<plugin>
 				<groupId>io.github.pagano-antonio</groupId>
 				<artifactId>spring-sentinel-maven-plugin</artifactId>
-				<version>2.0.0</version>
+				<version>2.0.1</version>
 				<executions>
 					<execution>
 						<phase>verify</phase>
@@ -330,4 +338,3 @@ XML
 Logic: Restricts the "Missing ResponseEntity" check exclusively to classes within a controller package.
 
 Use Case: Prevents the rule from running on internal helper classes that might look like controllers but aren't intended to be public APIs.
-
