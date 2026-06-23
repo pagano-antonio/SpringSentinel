@@ -1,5 +1,5 @@
 ---
-name: spotbugs-springsentinel
+name: spotbugs-plugin
 description: Prepare and evolve SpringSentinel SpotBugs bytecode analysis workflows. Use when working on the SpringSentinel SpotBugs plugin structure, future detector rules, or bytecode analysis setup.
 ---
 

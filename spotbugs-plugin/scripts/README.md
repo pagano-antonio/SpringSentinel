@@ -12,5 +12,5 @@ Initial script ideas:
 Current Gradle checks:
 
 ```bash
-gradle --no-daemon :plugins:spotbugs-springsentinel:test :plugins:spotbugs-springsentinel:jar
+gradle --no-daemon :spotbugs-plugin:test :spotbugs-plugin:jar
 ```

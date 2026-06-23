@@ -5,10 +5,10 @@
   },
   "plugins": [
     {
-      "name": "spotbugs-springsentinel",
+      "name": "spotbugs-plugin",
       "source": {
         "source": "local",
-        "path": "./plugins/spotbugs-springsentinel"
+        "path": "./spotbugs-plugin"
       },
       "policy": {
         "installation": "AVAILABLE",
