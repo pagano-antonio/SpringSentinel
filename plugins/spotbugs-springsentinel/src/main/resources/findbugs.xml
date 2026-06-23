@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindbugsPlugin
+        pluginid="springsentinel"
+        provider="SpringSentinel"
+        website="https://github.com/pagano-antonio/SpringSentinel">
+
+    <Detector
+            class="com.springsentinel.spotbugs.FieldInjectionDetector"
+            speed="fast"
+            reports="SS_ARCH_002_FIELD_INJECTION"/>
+
+    <BugPattern
+            type="SS_ARCH_002_FIELD_INJECTION"
+            abbrev="SSFI"
+            category="BAD_PRACTICE"/>
+</FindbugsPlugin>

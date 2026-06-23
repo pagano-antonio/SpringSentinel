@@ -1,0 +1,20 @@
+{
+  "name": "springsentinel",
+  "interface": {
+    "displayName": "SpringSentinel"
+  },
+  "plugins": [
+    {
+      "name": "spotbugs-springsentinel",
+      "source": {
+        "source": "local",
+        "path": "./plugins/spotbugs-springsentinel"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

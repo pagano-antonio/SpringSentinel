@@ -1,0 +1,28 @@
+plugins {
+    id "java-library"
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+base {
+    archivesName = "spring-sentinel-spotbugs"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly "com.github.spotbugs:spotbugs:4.8.6"
+    testImplementation "com.github.spotbugs:spotbugs:4.8.6"
+    testImplementation "org.junit.jupiter:junit-jupiter:5.10.0"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}

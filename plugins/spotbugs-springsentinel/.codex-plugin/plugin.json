@@ -1,0 +1,30 @@
+{
+  "name": "spotbugs-springsentinel",
+  "version": "0.1.0",
+  "description": "Codex plugin scaffold for SpringSentinel SpotBugs bytecode analysis.",
+  "author": {
+    "name": "SpringSentinel"
+  },
+  "keywords": [
+    "spotbugs",
+    "java",
+    "bytecode",
+    "static-analysis",
+    "springsentinel"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SpotBugs SpringSentinel",
+    "shortDescription": "Prepare SpotBugs bytecode analysis for SpringSentinel.",
+    "longDescription": "Provides the initial Codex plugin structure for SpringSentinel SpotBugs analysis. Rule selection and detector behavior can be added later once the bytecode analysis policy is defined.",
+    "developerName": "SpringSentinel",
+    "category": "Productivity",
+    "capabilities": [
+      "Code Analysis"
+    ],
+    "defaultPrompt": [
+      "Set up SpotBugs analysis for SpringSentinel.",
+      "Help me design SpotBugs rules for bytecode checks."
+    ]
+  }
+}
