@@ -3,7 +3,7 @@
 **Spring Sentinel** is a static analysis tool designed for Spring Boot developers to identify performance bottlenecks, security risks, and architectural smells. The analysis engine is shared by both the Maven plugin and the Gradle plugin.
 
 ## Key Features
-**Spring Sentinel** works with Maven and Gradle through build-tool specific plugins backed by the same core engine.
+**Spring Sentinel** works with Maven, Gradle, and SpotBugs through build-tool specific integrations backed by the same core engine.
 JPA Audit: Detects N+1 queries, FetchType.EAGER usage, and Cartesian Product risks.
 Transaction Safety: Identifies blocking I/O (REST calls, sleeps) inside @Transactional methods and detects proxy self-invocation bypasses.
 System Analysis: Validates the balance between Tomcat Thread Pools and HikariCP connection pools.
@@ -70,6 +70,75 @@ For local development of this repository, the Gradle build can compile the share
 gradle build
 ```
 
+## SpotBugs Integration (Experimental)
+
+Spring Sentinel provides an experimental SpotBugs extension for bytecode-based analysis.
+
+The extension can be used from any SpotBugs-supported environment, including:
+
+* Maven
+* Gradle
+* CLI
+* IDE integrations
+
+Currently supported SpotBugs rules:
+
+| Rule ID  | Description                                                           |
+| -------- | --------------------------------------------------------------------- |
+| ARCH-002 | Detects field injection using `@Autowired` and `@Inject` annotations. |
+
+Additional rules will be added in future releases.
+
+#### Maven Configuration
+
+```xml
+<plugin>
+    <groupId>com.github.spotbugs</groupId>
+    <artifactId>spotbugs-maven-plugin</artifactId>
+    <version>4.9.3.0</version>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.pagano-antonio</groupId>
+            <artifactId>spring-sentinel-spotbugs-plugin</artifactId>
+            <version>2.1.0</version>
+        </dependency>
+    </dependencies>
+</plugin>
+```
+
+Run SpotBugs:
+
+```bash
+mvn spotbugs:spotbugs
+```
+
+#### Gradle Configuration
+
+```groovy
+plugins {
+    id "com.github.spotbugs" version "6.2.4"
+}
+
+dependencies {
+    spotbugsPlugins "io.github.pagano-antonio:spring-sentinel-spotbugs-plugin:2.1.0"
+}
+```
+
+Run SpotBugs:
+
+```bash
+./gradlew spotbugsMain
+```
+
+Spring Sentinel findings will appear in the standard SpotBugs reports.
+
+> **Note**
+>
+> The SpotBugs integration currently supports only rules that can be reliably evaluated from compiled bytecode.
+> Source-based checks and configuration-based checks remain available through the Spring Sentinel Maven and Gradle plugins.
+
+
 ## Smart Reporting
 
 After the scan, Spring Sentinel generates two types of reports:
@@ -103,6 +172,20 @@ Build Tool: Maven 3.6.0+ or Gradle 8.x.
 
 ## License
 Distributed under the Apache License 2.0.
+
+## Supported Runners
+
+| Rule Type           | Maven Plugin | Gradle Plugin | SpotBugs Plugin |
+| ------------------- | ------------ | ------------- | --------------- |
+| Source-based Rules  | ✅            | ✅             | ❌               |
+| Configuration Rules | ✅            | ✅             | ❌               |
+| Bytecode Rules      | ✅            | ✅             | ✅               |
+
+Current SpotBugs support:
+
+* ARCH-002 — Field Injection Anti-pattern
+
+
 
 ## Audit Rules & Analyzed Cases
 This list details every check performed by the static analysis engine, the associated Rule IDs (used for XML profile configuration), and the underlying detection logic.
