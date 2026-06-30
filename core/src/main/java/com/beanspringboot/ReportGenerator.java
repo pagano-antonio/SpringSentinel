@@ -1,12 +1,16 @@
 package com.beanspringboot;
 
 import java.io.File;
-import java.io.FileWriter;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -50,84 +54,113 @@ public class ReportGenerator {
     }
 
     private void generateHtmlReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues, String profile) throws IOException {
-        try (FileWriter writer = new FileWriter(reportDir.resolve("report.html").toFile())) {
-            writer.write("<html><head><title>Spring Sentinel Report</title><style>" +
-                "body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:#f4f7f6;padding:30px;color:#333;}" +
-                ".header{background:#2c3e50;color:white;padding:25px;border-radius:8px;margin-bottom:20px;box-shadow:0 4px 6px rgba(0,0,0,0.1);}" +
-                ".profile-badge{background:#3498db;color:white;padding:5px 15px;border-radius:20px;font-size:14px;font-weight:bold;margin-left:15px;vertical-align:middle;text-transform:uppercase;}" +
-                ".summary{background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;}" +
-                ".filter-box{margin-bottom:20px; background:#fff; padding:15px; border-radius:8px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 4px rgba(0,0,0,0.05);}" +
-                "select{padding:8px; border-radius:4px; border:1px solid #ccc; cursor:pointer;}" +
-                ".card{background:#fff;padding:15px;margin-bottom:15px;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,0.05); border-left: 6px solid; transition: 0.3s;}" +
-                ".card:hover{transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1);}" +
-                ".tag{background:#34495e;color:#fff;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:bold;text-transform:uppercase;}" +
-                ".critical{border-left-color: #c0392b;}" + 
-                ".high{border-left-color: #e67e22;}" +     
-                ".warning{border-left-color: #f1c40f;}" +  
-                "h1{margin:0;} .badge-count{background:#e74c3c; color:white; padding:4px 12px; border-radius:15px; font-weight:bold;}" +
-                "</style></head><body>");
-            
-            // Header con Profilo Attivo
-            writer.write("<div class='header'>");
-            writer.write("<h1>🛡️ Spring Sentinel Audit <span class='profile-badge'>Profile: " + profile + "</span></h1>");
-            writer.write("</div>");
-            
-            // Summary Info
-            writer.write("<div class='summary'>");
-            writer.write("<span>Analysis completed. Total issues found:</span>");
-            writer.write("<span class='badge-count'>" + issues.size() + "</span>");
-            writer.write("</div>");
+        List<IssueGroup> groups = groupIssues(issues);
 
-            // UI Filters
-            writer.write("<div class='filter-box'>" +
-                "<strong>Filter by Priority:</strong>" +
-                "<select id='priorityFilter' onchange='filterIssues()'>" +
-                "<option value='all'>Show All Rules</option>" +
-                "<option value='critical'>🔴 Critical (Security/Concurrency)</option>" +
-                "<option value='high'>🟠 High (Performance/Architecture)</option>" +
-                "<option value='warning'>🟡 Warning (Best Practice/Design)</option>" +
-                "</select></div>");
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                reportDir.resolve("report.html"), StandardCharsets.UTF_8)) {
+            writer.write("<!doctype html><html lang='it'><head><meta charset='UTF-8'>" +
+                "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
+                "<title>Spring Sentinel Report</title><style>" +
+                ":root{--ink:#172333;--muted:#657386;--surface:#fff;--canvas:#f3f6f8;--brand:#21384f;--line:#dfe6ec;}" +
+                "*{box-sizing:border-box}body{margin:0;font-family:Inter,'Segoe UI',Arial,sans-serif;background:var(--canvas);color:var(--ink);line-height:1.5;}" +
+                ".page{width:min(1180px,calc(100% - 32px));margin:32px auto 56px}.header{background:linear-gradient(135deg,#20364c,#31546f);color:#fff;padding:30px 34px;border-radius:16px;box-shadow:0 12px 30px rgba(31,54,76,.18);}" +
+                ".header-row,.toolbar,.card-heading,.summary{display:flex;align-items:center}.header-row{gap:18px;flex-wrap:wrap}.logo{font-size:32px}.header h1{font-size:30px;line-height:1.2;margin:0}.profile-badge,.tag,.count{border-radius:999px;font-weight:700}.profile-badge{background:#46a8e5;padding:5px 13px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;}" +
+                ".summary{justify-content:space-between;gap:20px;background:var(--surface);padding:20px 24px;border-radius:12px;margin:20px 0;box-shadow:0 4px 14px rgba(27,45,65,.07)}.summary strong{font-size:22px}.summary-copy{color:var(--muted)}.summary-copy b{color:var(--ink)}" +
+                ".toolbar{gap:12px;flex-wrap:wrap;background:var(--surface);padding:16px 20px;border-radius:12px;margin-bottom:20px;border:1px solid var(--line)}label{font-weight:700}select{min-width:280px;padding:10px 36px 10px 12px;border:1px solid #b8c4cf;border-radius:8px;background:#fff;color:var(--ink);font:inherit;cursor:pointer;}" +
+                ".card{background:var(--surface);margin-bottom:18px;border:1px solid var(--line);border-left:6px solid;border-radius:12px;box-shadow:0 3px 12px rgba(27,45,65,.06);overflow:hidden}.card.critical{border-left-color:#d64545}.card.high{border-left-color:#e8872d}.card.warning{border-left-color:#d3aa18}" +
+                ".card-main{padding:22px 24px}.card-heading{justify-content:space-between;gap:16px}.tag{display:inline-block;background:#eaf0f5;color:#304a61;padding:4px 10px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}.count{white-space:nowrap;background:#f0f3f6;color:#42566a;padding:4px 10px;font-size:12px}.card h2{margin:10px 0 14px;font-size:22px}.label{display:block;color:var(--muted);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}.solution{margin:0;padding:15px 17px;background:#eef7f2;border:1px solid #cee7d8;border-radius:9px;color:#244e37}" +
+                ".locations{border-top:1px solid var(--line)}.locations-title{margin:0;padding:14px 24px;background:#f8fafb;font-size:14px}.locations table{width:100%;border-collapse:collapse}.locations th,.locations td{text-align:left;padding:12px 24px;border-top:1px solid #edf1f4}.locations th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.class-name{font-weight:700}.path{display:block;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;overflow-wrap:anywhere}.line-number{width:110px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:700}.empty{padding:30px;border-left-color:#2b9b61;text-align:center}" +
+                "@media(max-width:650px){.page{width:min(100% - 20px,1180px);margin-top:10px}.header{padding:24px}.header h1{font-size:24px}.summary{align-items:flex-start;flex-direction:column}.toolbar{align-items:stretch;flex-direction:column}select{min-width:0;width:100%}.card-main{padding:18px}.card-heading{align-items:flex-start}.locations-title,.locations th,.locations td{padding-left:16px;padding-right:16px}.locations th:first-child{display:none}.locations td{display:block;border-top:0}.locations tr{display:block;border-top:1px solid #edf1f4}.line-number{width:auto;padding-top:0!important}.locations thead{display:none}}" +
+                "</style></head><body><main class='page'>");
 
-            // Issues Container
-            writer.write("<div id='issues-container'>");
+            writer.write("<header class='header'><div class='header-row'><span class='logo' aria-hidden='true'>🛡️</span>" +
+                "<h1>Spring Sentinel Audit</h1><span class='profile-badge'>Profilo: " + escapeHtml(profile) + "</span></div></header>");
+
+            writer.write("<section class='summary' aria-label='Riepilogo'><div class='summary-copy'>Analisi completata<br>" +
+                "<b>" + groups.size() + " errori distinti</b> rilevati nel progetto</div>" +
+                "<strong>" + issues.size() + " <span class='summary-copy'>occorrenze</span></strong></section>");
+
+            if (!issues.isEmpty()) {
+                writer.write("<section class='toolbar'><label for='priorityFilter'>Filtra per priorità</label>" +
+                    "<select id='priorityFilter' onchange='filterIssues()'>" +
+                    "<option value='all'>Tutte le priorità</option>" +
+                    "<option value='critical'>Critica — Sicurezza e concorrenza</option>" +
+                    "<option value='high'>Alta — Performance e architettura</option>" +
+                    "<option value='warning'>Avviso — Design e best practice</option>" +
+                    "</select></section>");
+            }
+
+            writer.write("<section id='issues-container' aria-live='polite'>");
             if (issues.isEmpty()) {
-                writer.write("<div class='card' style='border-left-color: #27ae60;'><h2>✅ No issues found!</h2><p>Your project matches all the rules defined in the <b>" + profile + "</b> profile.</p></div>");
+                writer.write("<article class='card empty'><h2>✅ Nessun errore trovato</h2><p>Il progetto rispetta tutte le regole del profilo <b>" + escapeHtml(profile) + "</b>.</p></article>");
             } else {
-                for (StaticAnalysisCore.AuditIssue i : issues) {
-                    String priority = mapToPriority(i.type);
-                    writer.write(String.format(
-                        "<div class='card %s' data-priority='%s'>" +
-                        "<span class='tag'>%s</span>" +
-                        "<h3>%s</h3>" +
-                        "<p>Location: <b>%s</b> (Line: %d)</p>" +
-                        "<p style='background:#f9f9f9; padding:10px; border-radius:4px;'><b>Fix:</b> %s</p>" +
-                        "</div>",
-                        priority, priority, i.type, i.reason, i.file, i.line, i.suggestion));
+                for (IssueGroup group : groups) {
+                    writeIssueGroup(writer, group);
                 }
             }
-            writer.write("</div>");
+            writer.write("</section>");
 
-            // Filter Script
-            writer.write("<script>" +
-                "function filterIssues() {" +
-                "  var val = document.getElementById('priorityFilter').value;" +
-                "  var cards = document.querySelectorAll('.card');" +
-                "  cards.forEach(c => {" +
-                "    if(val === 'all' || c.getAttribute('data-priority') === val) {" +
-                "      c.style.display = 'block';" +
-                "    } else {" +
-                "      c.style.display = 'none';" +
-                "    }" +
-                "  });" +
-                "}" +
-                "</script>");
-            
-            writer.write("</body></html>");
+            writer.write("<script>function filterIssues(){var value=document.getElementById('priorityFilter').value;" +
+                "document.querySelectorAll('.issue-card').forEach(function(card){card.hidden=value!=='all'&&card.dataset.priority!==value;});}</script>" +
+                "</main></body></html>");
+        }
+    }
+
+    private List<IssueGroup> groupIssues(List<StaticAnalysisCore.AuditIssue> issues) {
+        Map<String, IssueGroup> groups = new LinkedHashMap<>();
+        for (StaticAnalysisCore.AuditIssue issue : issues) {
+            String key = issue.type + "\u0000" + issue.reason + "\u0000" + issue.suggestion;
+            groups.computeIfAbsent(key, ignored -> new IssueGroup(issue)).occurrences.add(issue);
+        }
+        return new ArrayList<>(groups.values());
+    }
+
+    private void writeIssueGroup(BufferedWriter writer, IssueGroup group) throws IOException {
+        StaticAnalysisCore.AuditIssue issue = group.example;
+        String priority = mapToPriority(issue.type);
+        writer.write("<article class='card issue-card " + priority + "' data-priority='" + priority + "'>" +
+            "<div class='card-main'><div class='card-heading'><span class='tag'>" + escapeHtml(issue.type) + "</span>" +
+            "<span class='count'>" + group.occurrences.size() + (group.occurrences.size() == 1 ? " occorrenza" : " occorrenze") + "</span></div>" +
+            "<h2><span class='label'>Errore trovato</span>" + escapeHtml(issue.reason) + "</h2>" +
+            "<p class='solution'><span class='label'>Possibile soluzione</span>" + escapeHtml(issue.suggestion) + "</p></div>" +
+            "<div class='locations'><h3 class='locations-title'>Classi e righe interessate</h3>" +
+            "<table><thead><tr><th>Classe / file</th><th>Riga</th></tr></thead><tbody>");
+
+        for (StaticAnalysisCore.AuditIssue occurrence : group.occurrences) {
+            writer.write("<tr><td><span class='class-name'>" + escapeHtml(displayName(occurrence.file)) + "</span>" +
+                "<span class='path'>" + escapeHtml(occurrence.file) + "</span></td>" +
+                "<td class='line-number'>" + (occurrence.line > 0 ? occurrence.line : "N/D") + "</td></tr>");
+        }
+        writer.write("</tbody></table></div></article>");
+    }
+
+    private String displayName(String file) {
+        String normalized = file.replace('\\', '/');
+        int slash = normalized.lastIndexOf('/');
+        String name = slash >= 0 ? normalized.substring(slash + 1) : normalized;
+        return name.endsWith(".java") ? name.substring(0, name.length() - 5) : name;
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    private static class IssueGroup {
+        private final StaticAnalysisCore.AuditIssue example;
+        private final List<StaticAnalysisCore.AuditIssue> occurrences = new ArrayList<>();
+
+        private IssueGroup(StaticAnalysisCore.AuditIssue example) {
+            this.example = example;
         }
     }
 
     private void generateJsonReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
-        try (FileWriter writer = new FileWriter(reportDir.resolve("report.json").toFile())) {
+        try (BufferedWriter writer = Files.newBufferedWriter(reportDir.resolve("report.json"), StandardCharsets.UTF_8)) {
             writer.write("{\n  \"totalIssues\": " + issues.size() + ",\n  \"issues\": [\n");
             for (int i = 0; i < issues.size(); i++) {
                 StaticAnalysisCore.AuditIssue issue = issues.get(i);
@@ -139,7 +172,7 @@ public class ReportGenerator {
     }
 
     private void generateSarifReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
-        try (FileWriter writer = new FileWriter(reportDir.resolve("report.sarif").toFile())) {
+        try (BufferedWriter writer = Files.newBufferedWriter(reportDir.resolve("report.sarif"), StandardCharsets.UTF_8)) {
             writer.write("{\n" +
                 "  \"$schema\": \"https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json\",\n" +
                 "  \"version\": \"2.1.0\",\n" +
