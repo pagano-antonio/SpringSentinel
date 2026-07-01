@@ -7,7 +7,7 @@
             <parameters>
                 <parameter name="pattern" value=".*(password|secret|apikey|pwd|token).*" />
             </parameters>
-            <rationale>Variable name matches the security pattern. Sensitive data should be moved to environment variables.</rationale>
+            <rationale>Password or pwd fields must be hashed or encrypted in the project. Other sensitive values should be moved to environment variables.</rationale>
         </rule>
         
         <rule id="SEC-002" severity="CRITICAL">
@@ -67,9 +67,9 @@
             <rationale>Leak detection thresholds below transaction or query timeouts can produce misleading connection leak diagnostics for valid long-running operations.</rationale>
         </rule>
 
-        <rule id="ARCH-001" severity="HIGH">
+        <rule id="ARCH-001" severity="WARNING">
             <name>Mutable state in Singleton</name>
-            <rationale>Spring Beans are Singletons. Avoid mutable fields or use Lombok @FieldDefaults(makeFinal=true).</rationale>
+            <rationale>Singleton beans should not modify instance fields outside their constructors.</rationale>
         </rule>
         <rule id="ARCH-002" severity="WARNING">
             <name>Field Injection Anti-pattern</name>

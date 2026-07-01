@@ -5,9 +5,14 @@ import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.AnnotationExpr;
+import com.github.javaparser.ast.expr.AssignExpr;
+import com.github.javaparser.ast.expr.Expression;
+import com.github.javaparser.ast.expr.FieldAccessExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
+import com.github.javaparser.ast.expr.UnaryExpr;
 import com.github.javaparser.ast.nodeTypes.NodeWithAnnotations;
 import com.github.javaparser.ast.stmt.ForEachStmt;
 
@@ -24,12 +29,25 @@ public class AnalysisRules {
             "resttemplate", "webclient", "feignclient", "httpclient", "thread.sleep"
     );
 
+    private static final String N_PLUS_ONE_SUGGESTION =
+            "This code may be affected by the N+1 query problem, where related entities are loaded one by one, resulting in excessive database queries. " +
+            "Consider fetching associations eagerly using JOIN FETCH or @EntityGraph, enabling batch fetching, or redesigning the query to load all required data in a single database round trip.";
+
     private final Consumer<StaticAnalysisCore.AuditIssue> issueConsumer;
     private final ResolvedConfig config;
+    private boolean projectProtectsPasswords;
 
     public AnalysisRules(Consumer<StaticAnalysisCore.AuditIssue> issueConsumer, ResolvedConfig config) {
         this.issueConsumer = issueConsumer;
         this.config = config;
+    }
+
+    public void indexPasswordProtection(Collection<CompilationUnit> compilationUnits) {
+        boolean projectHasPasswordHasher = compilationUnits.stream()
+                .map(Node::toString)
+                .anyMatch(this::mentionsKnownPasswordHasher);
+        projectProtectsPasswords = compilationUnits.stream()
+                .anyMatch(cu -> containsPasswordProtection(cu, projectHasPasswordHasher));
     }
 
     private void addIssue(String f, int l, String t, String r, String s) {
@@ -172,15 +190,74 @@ public class AnalysisRules {
     // ===============================
 
     protected void checkHardcodedSecrets(CompilationUnit cu, String f, String pattern) {
+        boolean passwordsAreProtected = projectProtectsPasswords ||
+                                        containsPasswordProtection(cu);
+
         cu.findAll(FieldDeclaration.class).forEach(field -> {
-            String name = field.getVariable(0).getNameAsString().toLowerCase();
-            if (name.matches(pattern)) {
-                addIssue(field, "SEC-001", f,
-                        field.getBegin().map(p -> p.line).orElse(0),
-                        "Security", "Potential Hardcoded Secret",
-                        "Move sensitive data to environment variables.");
+            for (VariableDeclarator variable : field.getVariables()) {
+                String name = variable.getNameAsString().toLowerCase();
+                if (name.matches(pattern) &&
+                    (!isPasswordName(name) || !passwordsAreProtected)) {
+                    String solution = isPasswordName(name)
+                            ? "Hash passwords with Spring Security PasswordEncoder using BCrypt or Argon2 before storing them."
+                            : "Move sensitive data to environment variables.";
+                    addIssue(field, "SEC-001", f,
+                            variable.getBegin().map(p -> p.line).orElse(0),
+                            "Security", "Potential Hardcoded Secret", solution);
+                }
             }
         });
+    }
+
+    private boolean isPasswordName(String name) {
+        return name.contains("password") || name.contains("pwd");
+    }
+
+    private boolean containsPasswordProtection(CompilationUnit cu) {
+        return containsPasswordProtection(cu, mentionsKnownPasswordHasher(cu.toString()));
+    }
+
+    private boolean containsPasswordProtection(CompilationUnit cu,
+                                               boolean knownHasherAvailable) {
+        return cu.findAll(MethodCallExpr.class).stream()
+                .anyMatch(call -> isPasswordProtectionCall(call) ||
+                        (knownHasherAvailable && isProtectionMethod(call) &&
+                         !call.toString().toLowerCase().contains("base64")));
+    }
+
+    private boolean isPasswordProtectionCall(MethodCallExpr call) {
+        String callText = call.toString().toLowerCase();
+
+        if (callText.contains("base64")) return false;
+
+        boolean knownPasswordHasher = mentionsKnownPasswordHasher(callText);
+        boolean passwordArgument = callText.contains("password") ||
+                                   callText.contains("pwd");
+        boolean protectionMethod = isProtectionMethod(call);
+
+        return protectionMethod && (knownPasswordHasher || passwordArgument);
+    }
+
+    private boolean mentionsKnownPasswordHasher(String source) {
+        String normalized = source.toLowerCase();
+        return normalized.contains("passwordencoder") ||
+               normalized.contains("bcrypt") ||
+               normalized.contains("argon2") ||
+               normalized.contains("scrypt") ||
+               normalized.contains("pbkdf2");
+    }
+
+    private boolean isProtectionMethod(MethodCallExpr call) {
+        String methodName = call.getNameAsString().toLowerCase();
+        return methodName.equals("encode") ||
+               methodName.equals("encrypt") ||
+               methodName.equals("digest") ||
+               methodName.equals("dofinal") ||
+               methodName.equals("hashpw") ||
+               methodName.contains("hashpassword") ||
+               methodName.contains("hashpwd") ||
+               methodName.contains("encryptpassword") ||
+               methodName.contains("encryptpwd");
     }
 
     protected void checkFatComponents(CompilationUnit cu, String f, int maxDeps) {
@@ -227,12 +304,12 @@ public class AnalysisRules {
         cu.findAll(ForEachStmt.class).forEach(loop -> {
             loop.findAll(MethodCallExpr.class).forEach(call -> {
                 if (call.getNameAsString().startsWith("get")) {
-                    addIssue(call, "PERF-002", f,
-                            call.getBegin().map(p -> p.line).orElse(0),
-                            "Database", "Potential N+1",
-                            "Avoid inside loops.");
-                }
-            });
+                        addIssue(call, "PERF-002", f,
+                                call.getBegin().map(p -> p.line).orElse(0),
+                                "Database", "Potential N+1",
+                                N_PLUS_ONE_SUGGESTION);
+                    }
+                });
         });
     }
 
@@ -262,15 +339,41 @@ public class AnalysisRules {
     }
 
     private boolean isSpringComponent(ClassOrInterfaceDeclaration clazz) {
-        return clazz.isAnnotationPresent("Service") ||
-               clazz.isAnnotationPresent("RestController") ||
-               clazz.isAnnotationPresent("Component") ||
-               clazz.isAnnotationPresent("Repository");
+        boolean component = clazz.isAnnotationPresent("Service") ||
+                            clazz.isAnnotationPresent("RestController") ||
+                            clazz.isAnnotationPresent("Controller") ||
+                            clazz.isAnnotationPresent("Component") ||
+                            clazz.isAnnotationPresent("Repository") ||
+                            clazz.isAnnotationPresent("Configuration");
+
+        return component && !hasNonSingletonScope(clazz);
+    }
+
+    private boolean hasNonSingletonScope(ClassOrInterfaceDeclaration clazz) {
+        if (clazz.isAnnotationPresent("RequestScope") ||
+            clazz.isAnnotationPresent("SessionScope")) {
+            return true;
+        }
+
+        return clazz.getAnnotationByName("Scope")
+                .map(AnnotationExpr::toString)
+                .map(String::toLowerCase)
+                .filter(scope -> !scope.equals("@scope"))
+                .filter(scope -> !scope.contains("singleton"))
+                .filter(scope -> !scope.matches("@scope\\(proxymode\\s*=.*\\)"))
+                .isPresent();
     }
 
     private boolean isInjectedField(FieldDeclaration field) {
         return field.isAnnotationPresent("Autowired") ||
                field.isAnnotationPresent("Inject");
+    }
+
+    private boolean isSpringManagedEntityManager(FieldDeclaration field) {
+        String fieldType = field.getElementType().asString();
+        return fieldType.equals("EntityManager") ||
+               fieldType.equals("jakarta.persistence.EntityManager") ||
+               fieldType.equals("javax.persistence.EntityManager");
     }
     protected void checkCacheTTL(CompilationUnit cu, String f, Properties p) {
         boolean hasTTL = p.keySet().stream()
@@ -372,16 +475,78 @@ public class AnalysisRules {
     protected void checkBeanScopesAndThreadSafety(CompilationUnit cu, String f) {
         cu.findAll(ClassOrInterfaceDeclaration.class).forEach(clazz -> {
             if (isSpringComponent(clazz)) {
-                clazz.findAll(FieldDeclaration.class).forEach(field -> {
-                    if (!field.isFinal() && !isInjectedField(field) && !field.isStatic()) {
-                        addIssue(field, "ARCH-001", f,
-                                field.getBegin().map(p -> p.line).orElse(0),
-                                "Thread Safety", "Mutable state",
-                                "Avoid mutable fields.");
-                    }
-                });
+                clazz.getFields().stream()
+                        .filter(field -> !field.isStatic())
+                        .filter(field -> !isSpringManagedEntityManager(field))
+                        .forEach(field -> {
+                            for (VariableDeclarator variable : field.getVariables()) {
+                                findFieldWriteOutsideConstructor(clazz, variable)
+                                        .ifPresent(write -> addIssue(field, "ARCH-001", f,
+                                                write.getBegin().map(p -> p.line).orElse(0),
+                                                "Thread Safety", "Mutable state in Singleton",
+                                                "Do not modify singleton fields outside the constructor."));
+                            }
+                        });
             }
         });
+    }
+
+    private Optional<Node> findFieldWriteOutsideConstructor(
+            ClassOrInterfaceDeclaration clazz, VariableDeclarator field) {
+        String fieldName = field.getNameAsString();
+
+        for (MethodDeclaration method : clazz.getMethods()) {
+            for (AssignExpr assignment : method.findAll(AssignExpr.class)) {
+                if (belongsToMethod(assignment, method) &&
+                    referencesInstanceField(assignment.getTarget(), fieldName, method)) {
+                    return Optional.of(assignment);
+                }
+            }
+
+            for (UnaryExpr unary : method.findAll(UnaryExpr.class)) {
+                if (belongsToMethod(unary, method) &&
+                    isIncrementOrDecrement(unary.getOperator()) &&
+                    referencesInstanceField(unary.getExpression(), fieldName, method)) {
+                    return Optional.of(unary);
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private boolean belongsToMethod(Node node, MethodDeclaration method) {
+        return node.findAncestor(MethodDeclaration.class)
+                .map(method::equals)
+                .orElse(false);
+    }
+
+    private boolean referencesInstanceField(Expression expression, String fieldName,
+                                            MethodDeclaration method) {
+        if (expression.isFieldAccessExpr()) {
+            FieldAccessExpr access = expression.asFieldAccessExpr();
+            return access.getNameAsString().equals(fieldName) &&
+                   access.getScope().isThisExpr();
+        }
+
+        if (!expression.isNameExpr() ||
+            !expression.asNameExpr().getNameAsString().equals(fieldName)) {
+            return false;
+        }
+
+        boolean parameterShadowsField = method.getParameters().stream()
+                .anyMatch(parameter -> parameter.getNameAsString().equals(fieldName));
+        boolean localVariableShadowsField = method.findAll(VariableDeclarator.class).stream()
+                .anyMatch(variable -> variable.getNameAsString().equals(fieldName));
+
+        return !parameterShadowsField && !localVariableShadowsField;
+    }
+
+    private boolean isIncrementOrDecrement(UnaryExpr.Operator operator) {
+        return operator == UnaryExpr.Operator.POSTFIX_INCREMENT ||
+               operator == UnaryExpr.Operator.POSTFIX_DECREMENT ||
+               operator == UnaryExpr.Operator.PREFIX_INCREMENT ||
+               operator == UnaryExpr.Operator.PREFIX_DECREMENT;
     }
 
     protected void checkLazyInjectionSmell(CompilationUnit cu, String f) {

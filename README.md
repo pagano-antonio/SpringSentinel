@@ -22,7 +22,7 @@ https://medium.com/@antoniopagano/how-to-use-springsentinel-245a3d2c433c
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>spring-sentinel-maven-plugin</artifactId>
-    <version>2.1.1</version>
+    <version>2.1.2</version>
     <executions>
         <execution>
             <phase>verify</phase> 
@@ -48,7 +48,7 @@ mvn spring-sentinel:audit
 ### Gradle
 ```groovy
 plugins {
-    id "io.github.pagano-antonio.spring-sentinel" version "2.1.1"
+    id "io.github.pagano-antonio.spring-sentinel" version "2.1.2"
 }
 
 springSentinel {
@@ -210,7 +210,7 @@ DB-004 (Misaligned Leak Detection Threshold): Warns when HikariCP leakDetectionT
 
 🔐 Security: Focused on protecting sensitive data and ensuring secure endpoint configurations.
 
-SEC-001 (Hardcoded Secrets Scanner): Checks class fields and properties for variable names matching sensitive patterns (e.g., password, apikey, token) that do not use environment variable placeholders.
+SEC-001 (Hardcoded Secrets Scanner): Reports password/pwd fields when no password hashing or encryption is found in the project; other sensitive fields and properties retain the existing checks.
 
 SEC-002 (Insecure CORS Policy): Flags the use of the "*" wildcard in @CrossOrigin annotations, which is a significant security risk for production APIs.
 
@@ -218,7 +218,7 @@ SEC-003 (Exposed Repositories): Warns if spring-boot-starter-data-rest is includ
 
 🏗️ Architecture & Thread Safety: Rules to ensure code follows Spring Framework best practices and is safe for multi-threaded execution.
 
-ARCH-001 (Singleton Thread Safety): Detects mutable state in Singleton beans (Lombok-aware).
+ARCH-001 (Singleton Thread Safety): Warns when a singleton bean modifies an instance field outside its constructor.
 
 ARCH-002 (Field Injection Anti-pattern): Flags the use of @Autowired on private fields, encouraging Constructor Injection for better testability and immutability.
 
@@ -309,7 +309,7 @@ You can define the profile globally for your project within the plugin configura
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>spring-sentinel-maven-plugin</artifactId>
-    <version>2.1.1</version>
+    <version>2.1.2</version>
     <configuration>
         <profile>standard</profile> 
     </configuration>
@@ -334,7 +334,7 @@ First, update your pom.xml to point to your custom file:
 			<plugin>
 				<groupId>io.github.pagano-antonio</groupId>
 				<artifactId>spring-sentinel-maven-plugin</artifactId>
-				<version>2.1.1</version>
+				<version>2.1.2</version>
 				<executions>
 					<execution>
 						<phase>verify</phase>

@@ -120,23 +120,24 @@ public class StaticAnalysisCore {
         if (Files.exists(javaPath)) {
             log.accept("Scanning Java files...");
 
+            Map<Path, CompilationUnit> compilationUnits = new LinkedHashMap<>();
+
             try (Stream<Path> paths = Files.walk(javaPath)) {
                 paths.filter(p -> p.toString().endsWith(".java"))
                         .forEach(path -> {
                             try {
-                                CompilationUnit cu = StaticJavaParser.parse(path);
-
-                                String relative = baseDir.toPath()
-                                        .relativize(path)
-                                        .toString();
-
-                                rules.runAllChecks(cu, relative, props);
-
+                                compilationUnits.put(path, StaticJavaParser.parse(path));
                             } catch (Exception e) {
                                 log.accept("Parse error: " + path.getFileName());
                             }
                         });
             }
+
+            rules.indexPasswordProtection(compilationUnits.values());
+            compilationUnits.forEach((path, cu) -> {
+                String relative = baseDir.toPath().relativize(path).toString();
+                rules.runAllChecks(cu, relative, props);
+            });
         }
 
         new ReportGenerator().generateReports(outputDir, issues, selectedProfile);
