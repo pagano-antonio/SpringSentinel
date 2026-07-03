@@ -17,6 +17,15 @@ https://medium.com/@antoniopagano/how-to-use-springsentinel-245a3d2c433c
 
 
 ## 🚀 Quick Start
+
+### GitHub Action
+
+SpringSentinel is also available as a GitHub Action.
+
+```yaml
+- uses: pagano-antonio/springsentinel-action@v1
+```
+
 ### Maven
 ```xml
 <plugin>
