@@ -150,7 +150,7 @@ Spring Sentinel findings will appear in the standard SpotBugs reports.
 
 ## Smart Reporting
 
-After the scan, Spring Sentinel generates two types of reports:
+After the scan, Spring Sentinel generates four report files:
 
 Maven: `target/spring-sentinel-reports/`
 
@@ -159,6 +159,10 @@ Gradle: `build/spring-sentinel-reports/`
 report.html:  A beautiful, human-readable dashboard for quick issue identification.
 
 report.json: Structured data designed for CI/CD pipelines, automated analysis, or custom dashboards.
+
+report.sarif: SARIF output for integration with compatible code-scanning tools.
+
+comment.md: Compact analysis summary ready to publish in CI/CD comments.
 
 
 ## Key Audit Checks

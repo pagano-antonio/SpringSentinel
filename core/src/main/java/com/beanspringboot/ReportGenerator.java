@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Generates reports in HTML, JSON, and SARIF formats.
+ * Generates reports in HTML, JSON, SARIF, and Markdown formats.
  * v1.2.0: Added Profile visualization, interactive UI filters, and SARIF support.
  */
 public class ReportGenerator {
@@ -34,6 +34,7 @@ public class ReportGenerator {
         generateJsonReport(outputDir.toPath(), sortedIssues);
         generateHtmlReport(outputDir.toPath(), sortedIssues, profile);
         generateSarifReport(outputDir.toPath(), sortedIssues);
+        generateCommentReport(outputDir.toPath(), sortedIssues);
     }
 
     private int getPriorityWeight(StaticAnalysisCore.AuditIssue issue) {
@@ -229,6 +230,48 @@ public class ReportGenerator {
             }
         }
         return escaped.toString();
+    }
+
+    private void generateCommentReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
+        Map<String, Integer> summary = buildSummary(issues);
+        Map<String, Integer> categories = new LinkedHashMap<>();
+        for (StaticAnalysisCore.AuditIssue issue : issues) {
+            categories.merge(issue.type.trim().replaceAll("\\s+", " "), 1, Integer::sum);
+        }
+
+        List<Map.Entry<String, Integer>> sortedCategories = new ArrayList<>(categories.entrySet());
+        sortedCategories.sort(Comparator
+                .<Map.Entry<String, Integer>>comparingInt(Map.Entry::getValue)
+                .reversed()
+                .thenComparing(Map.Entry::getKey, String.CASE_INSENSITIVE_ORDER));
+        int categoryWidth = sortedCategories.stream()
+                .mapToInt(entry -> entry.getKey().length())
+                .max()
+                .orElse(0);
+
+        String separator = "------------------------------------------------------------";
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                reportDir.resolve("comment.md"), StandardCharsets.UTF_8)) {
+            writer.write(separator + "\n");
+            writer.write(" SpringSentinel Analysis Summary\n");
+            writer.write(separator + "\n\n");
+            writer.write("Total findings : " + issues.size() + "\n\n");
+            writer.write("Severity\n\n");
+            writer.write(String.format("🔴 Critical : %d%n", summary.get("critical")));
+            writer.write(String.format("🟠 High     : %d%n", summary.get("high")));
+            writer.write(String.format("🟡 Warning  : %d%n", summary.get("warning")));
+            writer.write("\nCategories\n\n");
+            for (Map.Entry<String, Integer> category : sortedCategories) {
+                writer.write(String.format("%-" + categoryWidth + "s : %d%n",
+                        category.getKey(), category.getValue()));
+            }
+            writer.write("\nReports generated:\n\n");
+            writer.write("✔ report.html\n");
+            writer.write("✔ report.json\n");
+            writer.write("✔ report.sarif\n");
+            writer.write("✔ comment.md\n\n");
+            writer.write(separator + "\n");
+        }
     }
 
     private void generateSarifReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {

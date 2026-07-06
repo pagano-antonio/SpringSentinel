@@ -84,6 +84,35 @@ class ReportGeneratorTest {
         assertTrue(json.contains("\"bestPractice\": 1"));
     }
 
+    @Test
+    void generatesCommentReportWithSeverityCategoriesAndReportList() throws Exception {
+        List<StaticAnalysisCore.AuditIssue> issues = List.of(
+                new StaticAnalysisCore.AuditIssue("Security.java", 1,
+                        "Security", "Unsafe", "Fix it"),
+                new StaticAnalysisCore.AuditIssue("Repository.java", 2,
+                        "Database", "N+1", "Fetch it"),
+                new StaticAnalysisCore.AuditIssue("OtherRepository.java", 3,
+                        "Database", "N+1", "Fetch it"),
+                new StaticAnalysisCore.AuditIssue("Controller.java", 4,
+                        "REST Design", "Bad path", "Rename it"));
+
+        new ReportGenerator().generateReports(outputDir.toFile(), issues, "strict");
+
+        String comment = Files.readString(outputDir.resolve("comment.md"));
+        assertTrue(comment.contains("SpringSentinel Analysis Summary"));
+        assertTrue(comment.contains("Total findings : 4"));
+        assertTrue(comment.contains("🔴 Critical : 1"));
+        assertTrue(comment.contains("🟠 High     : 2"));
+        assertTrue(comment.contains("🟡 Warning  : 1"));
+        assertTrue(comment.contains("Database    : 2"));
+        assertTrue(comment.contains("REST Design : 1"));
+        assertTrue(comment.contains("Security    : 1"));
+        assertTrue(comment.contains("✔ report.html"));
+        assertTrue(comment.contains("✔ report.json"));
+        assertTrue(comment.contains("✔ report.sarif"));
+        assertTrue(comment.contains("✔ comment.md"));
+    }
+
     private int occurrences(String value, String token) {
         int count = 0;
         int index = 0;
