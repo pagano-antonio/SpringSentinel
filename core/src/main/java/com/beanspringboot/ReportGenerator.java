@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -160,15 +161,74 @@ public class ReportGenerator {
     }
 
     private void generateJsonReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {
+        Map<String, Integer> summary = buildSummary(issues);
+
         try (BufferedWriter writer = Files.newBufferedWriter(reportDir.resolve("report.json"), StandardCharsets.UTF_8)) {
-            writer.write("{\n  \"totalIssues\": " + issues.size() + ",\n  \"issues\": [\n");
+            writer.write("{\n  \"totalIssues\": " + issues.size() + ",\n  \"summary\": {\n");
+            int summaryIndex = 0;
+            for (Map.Entry<String, Integer> entry : summary.entrySet()) {
+                writer.write(String.format("    \"%s\": %d%s\n",
+                        escapeJson(entry.getKey()), entry.getValue(),
+                        summaryIndex++ < summary.size() - 1 ? "," : ""));
+            }
+            writer.write("  },\n  \"issues\": [\n");
             for (int i = 0; i < issues.size(); i++) {
                 StaticAnalysisCore.AuditIssue issue = issues.get(i);
                 writer.write(String.format("    {\"file\":\"%s\",\"line\":%d,\"type\":\"%s\",\"priority\":\"%s\",\"reason\":\"%s\",\"suggestion\":\"%s\"}%s\n",
-                        issue.file, issue.line, issue.type, mapToPriority(issue.type), issue.reason, issue.suggestion, (i < issues.size() - 1 ? "," : "")));
+                        escapeJson(issue.file), issue.line, escapeJson(issue.type), mapToPriority(issue.type),
+                        escapeJson(issue.reason), escapeJson(issue.suggestion), (i < issues.size() - 1 ? "," : "")));
             }
             writer.write("  ]\n}");
         }
+    }
+
+    private Map<String, Integer> buildSummary(List<StaticAnalysisCore.AuditIssue> issues) {
+        Map<String, Integer> summary = new LinkedHashMap<>();
+        summary.put("critical", 0);
+        summary.put("high", 0);
+        summary.put("warning", 0);
+
+        for (StaticAnalysisCore.AuditIssue issue : issues) {
+            summary.compute(mapToPriority(issue.type), (key, count) -> count + 1);
+            summary.merge(toCamelCase(issue.type), 1, Integer::sum);
+        }
+        return summary;
+    }
+
+    private String toCamelCase(String value) {
+        String[] words = value.trim().split("[^A-Za-z0-9]+");
+        if (words.length == 0 || words[0].isEmpty()) return "other";
+
+        StringBuilder result = new StringBuilder(words[0].toLowerCase(Locale.ROOT));
+        for (int i = 1; i < words.length; i++) {
+            if (!words[i].isEmpty()) {
+                String word = words[i].toLowerCase(Locale.ROOT);
+                result.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));
+            }
+        }
+        return result.toString();
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) return "";
+        StringBuilder escaped = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            switch (c) {
+                case '\"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (c < 0x20) escaped.append(String.format("\\u%04x", (int) c));
+                    else escaped.append(c);
+                }
+            }
+        }
+        return escaped.toString();
     }
 
     private void generateSarifReport(Path reportDir, List<StaticAnalysisCore.AuditIssue> issues) throws IOException {

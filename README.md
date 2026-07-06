@@ -31,7 +31,7 @@ SpringSentinel is also available as a GitHub Action.
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>spring-sentinel-maven-plugin</artifactId>
-    <version>2.1.2</version>
+    <version>2.1.3</version>
     <executions>
         <execution>
             <phase>verify</phase> 
@@ -57,7 +57,7 @@ mvn spring-sentinel:audit
 ### Gradle
 ```groovy
 plugins {
-    id "io.github.pagano-antonio.spring-sentinel" version "2.1.2"
+    id "io.github.pagano-antonio.spring-sentinel" version "2.1.3"
 }
 
 springSentinel {
@@ -318,7 +318,7 @@ You can define the profile globally for your project within the plugin configura
 <plugin>
     <groupId>io.github.pagano-antonio</groupId>
     <artifactId>spring-sentinel-maven-plugin</artifactId>
-    <version>2.1.2</version>
+    <version>2.1.3</version>
     <configuration>
         <profile>standard</profile> 
     </configuration>
@@ -343,7 +343,7 @@ First, update your pom.xml to point to your custom file:
 			<plugin>
 				<groupId>io.github.pagano-antonio</groupId>
 				<artifactId>spring-sentinel-maven-plugin</artifactId>
-				<version>2.1.2</version>
+				<version>2.1.3</version>
 				<executions>
 					<execution>
 						<phase>verify</phase>

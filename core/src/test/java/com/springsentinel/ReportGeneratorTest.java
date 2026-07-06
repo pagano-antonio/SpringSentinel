@@ -57,6 +57,33 @@ class ReportGeneratorTest {
         assertFalse(html.contains("Unsafe <script>"));
     }
 
+    @Test
+    void jsonReportIncludesPriorityAndIssueTypeSummary() throws Exception {
+        List<StaticAnalysisCore.AuditIssue> issues = List.of(
+                new StaticAnalysisCore.AuditIssue("Security.java", 1,
+                        "Security", "Unsafe", "Fix it"),
+                new StaticAnalysisCore.AuditIssue("Repository.java", 2,
+                        "Database", "N+1", "Fetch it"),
+                new StaticAnalysisCore.AuditIssue("Controller.java", 3,
+                        "REST Design", "Bad path", "Rename it"),
+                new StaticAnalysisCore.AuditIssue("OtherController.java", 4,
+                        "REST Design", "Bad verb", "Change it"),
+                new StaticAnalysisCore.AuditIssue("Service.java", 5,
+                        "Best Practice", "Missing annotation", "Add it"));
+
+        new ReportGenerator().generateReports(outputDir.toFile(), issues, "strict");
+
+        String json = Files.readString(outputDir.resolve("report.json"));
+        assertTrue(json.contains("\"totalIssues\": 5"));
+        assertTrue(json.contains("\"critical\": 1"));
+        assertTrue(json.contains("\"high\": 1"));
+        assertTrue(json.contains("\"warning\": 3"));
+        assertTrue(json.contains("\"security\": 1"));
+        assertTrue(json.contains("\"database\": 1"));
+        assertTrue(json.contains("\"restDesign\": 2"));
+        assertTrue(json.contains("\"bestPractice\": 1"));
+    }
+
     private int occurrences(String value, String token) {
         int count = 0;
         int index = 0;
