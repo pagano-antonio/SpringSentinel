@@ -45,6 +45,7 @@ SpringSentinel is also available as a GitHub Action.
         
         <maxDependencies>7</maxDependencies> 
         <secretPattern>.*(password|secret|apikey|token).*</secretPattern> 
+        <language>en</language>
     </configuration>
 </plugin>
 ```
@@ -65,6 +66,7 @@ springSentinel {
     maxDependencies = 7
     secretPattern = ".*(password|secret|apikey|token).*"
     failOnError = false
+    language = "en"
     // customRules = layout.projectDirectory.file("src/main/resources/custom-sentinel-rules.xml")
 }
 ```
@@ -163,6 +165,15 @@ report.json: Structured data designed for CI/CD pipelines, automated analysis, o
 report.sarif: SARIF output for integration with compatible code-scanning tools.
 
 comment.md: Compact analysis summary ready to publish in CI/CD comments.
+
+### Report Language
+
+The HTML report is generated in Italian by default. Set the `language` option to the two-character code `en` to generate it in English instead (unsupported codes fall back to Italian with a warning):
+
+- Maven: `<language>en</language>` in the plugin `<configuration>`, or `-Dsentinel.language=en` on the command line.
+- Gradle: `language = "en"` in the `springSentinel` extension block.
+
+The JSON, SARIF, and comment.md reports are machine/CI oriented and are not affected by this setting.
 
 
 ## Key Audit Checks

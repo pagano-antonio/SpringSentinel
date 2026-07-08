@@ -42,6 +42,9 @@ public class SentinelMojo extends AbstractMojo {
     @Parameter(property = "sentinel.secretPattern", defaultValue = ".*(password|secret|apikey|pwd|token).*")
     private String secretPattern;
 
+    @Parameter(property = "sentinel.language", defaultValue = "it")
+    private String language;
+
     @Parameter(property = "sentinel.failOnError", defaultValue = "false")
     private boolean failOnError;
 
@@ -57,6 +60,7 @@ public class SentinelMojo extends AbstractMojo {
             core.setCustomRulesFile(customRules);
             core.setMaxDependencies(maxDependencies);
             core.setSecretPattern(secretPattern);
+            core.setLanguage(language);
             core.executeAnalysis(baseDir, sentinelOutputDir);
 
             List<StaticAnalysisCore.AuditIssue> issues = core.getIssues();

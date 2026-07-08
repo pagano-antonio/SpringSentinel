@@ -20,6 +20,24 @@ import java.util.stream.Collectors;
  */
 public class ReportGenerator {
 
+    private final ReportMessages messages;
+
+    /**
+     * Creates a generator producing reports in the default language (Italian).
+     */
+    public ReportGenerator() {
+        this(ReportMessages.forLanguage(ReportMessages.DEFAULT_LANGUAGE, null));
+    }
+
+    /**
+     * Creates a generator producing the HTML report in the language of the given messages.
+     *
+     * @param messages the resolved report messages, must not be {@code null}
+     */
+    public ReportGenerator(final ReportMessages messages) {
+        this.messages = messages;
+    }
+
     public void generateReports(File outputDir, List<StaticAnalysisCore.AuditIssue> issues, String profile) throws IOException {
         // Assicuriamoci che la directory esista
         if (!outputDir.exists()) {
@@ -60,9 +78,9 @@ public class ReportGenerator {
 
         try (BufferedWriter writer = Files.newBufferedWriter(
                 reportDir.resolve("report.html"), StandardCharsets.UTF_8)) {
-            writer.write("<!doctype html><html lang='it'><head><meta charset='UTF-8'>" +
+            writer.write("<!doctype html><html lang='" + messages.languageCode() + "'><head><meta charset='UTF-8'>" +
                 "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
-                "<title>Spring Sentinel Report</title><style>" +
+                "<title>" + messages.get("report.title") + "</title><style>" +
                 ":root{--ink:#172333;--muted:#657386;--surface:#fff;--canvas:#f3f6f8;--brand:#21384f;--line:#dfe6ec;}" +
                 "*{box-sizing:border-box}body{margin:0;font-family:Inter,'Segoe UI',Arial,sans-serif;background:var(--canvas);color:var(--ink);line-height:1.5;}" +
                 ".page{width:min(1180px,calc(100% - 32px));margin:32px auto 56px}.header{background:linear-gradient(135deg,#20364c,#31546f);color:#fff;padding:30px 34px;border-radius:16px;box-shadow:0 12px 30px rgba(31,54,76,.18);}" +
@@ -76,25 +94,27 @@ public class ReportGenerator {
                 "</style></head><body><main class='page'>");
 
             writer.write("<header class='header'><div class='header-row'><span class='logo' aria-hidden='true'>🛡️</span>" +
-                "<h1>Spring Sentinel Audit</h1><span class='profile-badge'>Profilo: " + escapeHtml(profile) + "</span></div></header>");
+                "<h1>" + messages.get("report.heading") + "</h1><span class='profile-badge'>" +
+                messages.format("report.profile.badge", escapeHtml(profile)) + "</span></div></header>");
 
-            writer.write("<section class='summary' aria-label='Riepilogo'><div class='summary-copy'>Analisi completata<br>" +
-                "<b>" + groups.size() + " errori distinti</b> rilevati nel progetto</div>" +
-                "<strong>" + issues.size() + " <span class='summary-copy'>occorrenze</span></strong></section>");
+            writer.write("<section class='summary' aria-label='" + messages.get("report.summary.aria") + "'>" +
+                "<div class='summary-copy'>" + messages.format("report.summary.copy", groups.size()) + "</div>" +
+                "<strong>" + issues.size() + " <span class='summary-copy'>" + messages.get("report.summary.occurrences") + "</span></strong></section>");
 
             if (!issues.isEmpty()) {
-                writer.write("<section class='toolbar'><label for='priorityFilter'>Filtra per priorità</label>" +
+                writer.write("<section class='toolbar'><label for='priorityFilter'>" + messages.get("report.filter.label") + "</label>" +
                     "<select id='priorityFilter' onchange='filterIssues()'>" +
-                    "<option value='all'>Tutte le priorità</option>" +
-                    "<option value='critical'>Critica — Sicurezza e concorrenza</option>" +
-                    "<option value='high'>Alta — Performance e architettura</option>" +
-                    "<option value='warning'>Avviso — Design e best practice</option>" +
+                    "<option value='all'>" + messages.get("report.filter.all") + "</option>" +
+                    "<option value='critical'>" + messages.get("report.filter.critical") + "</option>" +
+                    "<option value='high'>" + messages.get("report.filter.high") + "</option>" +
+                    "<option value='warning'>" + messages.get("report.filter.warning") + "</option>" +
                     "</select></section>");
             }
 
             writer.write("<section id='issues-container' aria-live='polite'>");
             if (issues.isEmpty()) {
-                writer.write("<article class='card empty'><h2>✅ Nessun errore trovato</h2><p>Il progetto rispetta tutte le regole del profilo <b>" + escapeHtml(profile) + "</b>.</p></article>");
+                writer.write("<article class='card empty'><h2>" + messages.get("report.empty.title") + "</h2><p>" +
+                    messages.format("report.empty.body", escapeHtml(profile)) + "</p></article>");
             } else {
                 for (IssueGroup group : groups) {
                     writeIssueGroup(writer, group);
@@ -122,18 +142,25 @@ public class ReportGenerator {
         String priority = mapToPriority(issue.type);
         writer.write("<article class='card issue-card " + priority + "' data-priority='" + priority + "'>" +
             "<div class='card-main'><div class='card-heading'><span class='tag'>" + escapeHtml(issue.type) + "</span>" +
-            "<span class='count'>" + group.occurrences.size() + (group.occurrences.size() == 1 ? " occorrenza" : " occorrenze") + "</span></div>" +
-            "<h2><span class='label'>Errore trovato</span>" + escapeHtml(issue.reason) + "</h2>" +
-            "<p class='solution'><span class='label'>Possibile soluzione</span>" + escapeHtml(issue.suggestion) + "</p></div>" +
-            "<div class='locations'><h3 class='locations-title'>Classi e righe interessate</h3>" +
-            "<table><thead><tr><th>Classe / file</th><th>Riga</th></tr></thead><tbody>");
+            "<span class='count'>" + group.occurrences.size() + " " + occurrenceLabel(group.occurrences.size()) + "</span></div>" +
+            "<h2><span class='label'>" + messages.get("report.issue.found") + "</span>" + escapeHtml(issue.reason) + "</h2>" +
+            "<p class='solution'><span class='label'>" + messages.get("report.issue.solution") + "</span>" + escapeHtml(issue.suggestion) + "</p></div>" +
+            "<div class='locations'><h3 class='locations-title'>" + messages.get("report.locations.title") + "</h3>" +
+            "<table><thead><tr><th>" + messages.get("report.locations.class") + "</th><th>" + messages.get("report.locations.line") + "</th></tr></thead><tbody>");
 
         for (StaticAnalysisCore.AuditIssue occurrence : group.occurrences) {
             writer.write("<tr><td><span class='class-name'>" + escapeHtml(displayName(occurrence.file)) + "</span>" +
                 "<span class='path'>" + escapeHtml(occurrence.file) + "</span></td>" +
-                "<td class='line-number'>" + (occurrence.line > 0 ? occurrence.line : "N/D") + "</td></tr>");
+                "<td class='line-number'>" + (occurrence.line > 0 ? String.valueOf(occurrence.line) : messages.get("report.line.unavailable")) + "</td></tr>");
         }
         writer.write("</tbody></table></div></article>");
+    }
+
+    /**
+     * Returns the localised singular or plural occurrence label for the given count.
+     */
+    private String occurrenceLabel(final int count) {
+        return messages.get(count == 1 ? "report.occurrence.singular" : "report.occurrence.plural");
     }
 
     private String displayName(String file) {

@@ -52,6 +52,9 @@ public abstract class SpringSentinelTask extends DefaultTask {
     public abstract Property<String> getSecretPattern();
 
     @Input
+    public abstract Property<String> getLanguage();
+
+    @Input
     public abstract Property<Boolean> getFailOnError();
 
     @TaskAction
@@ -68,6 +71,7 @@ public abstract class SpringSentinelTask extends DefaultTask {
             }
             core.setMaxDependencies(getMaxDependencies().get());
             core.setSecretPattern(getSecretPattern().get());
+            core.setLanguage(getLanguage().get());
             core.executeAnalysis(baseDir, outputDir);
 
             List<StaticAnalysisCore.AuditIssue> issues = core.getIssues();
