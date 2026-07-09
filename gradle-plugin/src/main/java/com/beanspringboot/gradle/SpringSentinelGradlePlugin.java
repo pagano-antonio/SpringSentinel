@@ -16,6 +16,7 @@ public class SpringSentinelGradlePlugin implements Plugin<Project> {
         extension.getProfile().convention("strict");
         extension.getMaxDependencies().convention(7);
         extension.getSecretPattern().convention(".*(password|secret|apikey|pwd|token).*");
+        extension.getLanguage().convention("it");
         extension.getFailOnError().convention(false);
 
         project.getTasks().register(TASK_NAME, SpringSentinelTask.class, task -> {
@@ -27,6 +28,7 @@ public class SpringSentinelGradlePlugin implements Plugin<Project> {
             task.getCustomRules().convention(extension.getCustomRules());
             task.getMaxDependencies().convention(extension.getMaxDependencies());
             task.getSecretPattern().convention(extension.getSecretPattern());
+            task.getLanguage().convention(extension.getLanguage());
             task.getFailOnError().convention(extension.getFailOnError());
         });
     }

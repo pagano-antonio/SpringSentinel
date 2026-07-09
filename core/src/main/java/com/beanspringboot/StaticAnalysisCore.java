@@ -40,6 +40,7 @@ public class StaticAnalysisCore {
     private File customRulesFile;
     private int maxDependencies = 7;
     private String secretPattern = ".*(password|secret|apikey|pwd|token).*";
+    private String language = ReportMessages.DEFAULT_LANGUAGE;
 
     public StaticAnalysisCore(Consumer<String> log) {
         this.log = log != null ? log : System.out::println;
@@ -64,6 +65,16 @@ public class StaticAnalysisCore {
 
     public void setSecretPattern(String secretPattern) {
         this.secretPattern = secretPattern;
+    }
+
+    /**
+     * Sets the two-character language code for the generated HTML report.
+     * Defaults to Italian ({@code "it"}); {@code "en"} selects English.
+     *
+     * @param language the requested report language code
+     */
+    public void setLanguage(final String language) {
+        this.language = language;
     }
 
     private void configureJavaParser() {
@@ -140,7 +151,7 @@ public class StaticAnalysisCore {
             });
         }
 
-        new ReportGenerator().generateReports(outputDir, issues, selectedProfile);
+        new ReportGenerator(ReportMessages.forLanguage(language, log)).generateReports(outputDir, issues, selectedProfile);
     }
 
     public void executeAnalysisWithPropsOnly(Properties props,

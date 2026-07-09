@@ -1,6 +1,7 @@
 package com.springsentinel;
 
 import com.beanspringboot.ReportGenerator;
+import com.beanspringboot.ReportMessages;
 import com.beanspringboot.StaticAnalysisCore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -111,6 +112,85 @@ class ReportGeneratorTest {
         assertTrue(comment.contains("✔ report.json"));
         assertTrue(comment.contains("✔ report.sarif"));
         assertTrue(comment.contains("✔ comment.md"));
+    }
+
+    @Test
+    void defaultReportRemainsItalian() throws Exception {
+        new ReportGenerator().generateReports(outputDir.toFile(), List.of(), "strict");
+
+        String html = Files.readString(outputDir.resolve("report.html"));
+        assertTrue(html.contains("<html lang='it'>"));
+        assertTrue(html.contains("Profilo: strict"));
+        assertTrue(html.contains("Nessun errore trovato"));
+        assertTrue(html.contains("Il progetto rispetta tutte le regole del profilo <b>strict</b>."));
+    }
+
+    @Test
+    void englishLanguageProducesTranslatedReport() throws Exception {
+        List<StaticAnalysisCore.AuditIssue> issues = List.of(
+                new StaticAnalysisCore.AuditIssue(
+                        "src/main/java/example/FirstService.java", 18,
+                        "Thread Safety", "Mutable state", "Avoid mutable fields."),
+                new StaticAnalysisCore.AuditIssue(
+                        "src/main/java/example/SecondService.java", 42,
+                        "Thread Safety", "Mutable state", "Avoid mutable fields."),
+                new StaticAnalysisCore.AuditIssue(
+                        "src/main/java/example/Repository.java", 0,
+                        "Database", "N+1", "Fetch it"));
+
+        new ReportGenerator(ReportMessages.forLanguage("en", null))
+                .generateReports(outputDir.toFile(), issues, "strict");
+
+        String html = Files.readString(outputDir.resolve("report.html"));
+        assertTrue(html.contains("<html lang='en'>"));
+        assertTrue(html.contains("Profile: strict"));
+        assertTrue(html.contains("Analysis completed<br><b>2 distinct errors</b> detected in the project"));
+        assertTrue(html.contains("Filter by priority"));
+        assertTrue(html.contains("All priorities"));
+        assertTrue(html.contains("2 occurrences"));
+        assertTrue(html.contains("1 occurrence<"));
+        assertTrue(html.contains("<span class='label'>Error found</span>Mutable state"));
+        assertTrue(html.contains("<span class='label'>Possible solution</span>Avoid mutable fields."));
+        assertTrue(html.contains("Affected classes and lines"));
+        assertTrue(html.contains("<td class='line-number'>N/A</td>"));
+        assertFalse(html.contains("occorrenz"));
+        assertFalse(html.contains("Profilo"));
+    }
+
+    @Test
+    void englishEmptyReportIsTranslated() throws Exception {
+        new ReportGenerator(ReportMessages.forLanguage("en", null))
+                .generateReports(outputDir.toFile(), List.of(), "strict");
+
+        String html = Files.readString(outputDir.resolve("report.html"));
+        assertTrue(html.contains("No errors found"));
+        assertTrue(html.contains("The project complies with all rules of the <b>strict</b> profile."));
+    }
+
+    @Test
+    void unsupportedLanguageFallsBackToItalianWithWarning() {
+        List<String> logged = new java.util.ArrayList<>();
+
+        ReportMessages messages = ReportMessages.forLanguage("fr", logged::add);
+
+        assertEquals("it", messages.languageCode());
+        assertEquals("Profilo: %s", messages.get("report.profile.badge"));
+        assertEquals(1, logged.size());
+        assertTrue(logged.get(0).contains("fr"));
+    }
+
+    @Test
+    void blankOrNullLanguageDefaultsToItalianWithoutWarning() {
+        List<String> logged = new java.util.ArrayList<>();
+
+        assertEquals("it", ReportMessages.forLanguage(null, logged::add).languageCode());
+        assertEquals("it", ReportMessages.forLanguage("  ", logged::add).languageCode());
+        assertTrue(logged.isEmpty());
+    }
+
+    @Test
+    void languageCodeIsCaseInsensitive() {
+        assertEquals("en", ReportMessages.forLanguage("EN", null).languageCode());
     }
 
     private int occurrences(String value, String token) {

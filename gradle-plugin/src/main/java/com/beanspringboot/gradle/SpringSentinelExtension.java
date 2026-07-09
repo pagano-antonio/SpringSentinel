@@ -13,5 +13,7 @@ public abstract class SpringSentinelExtension {
 
     public abstract Property<String> getSecretPattern();
 
+    public abstract Property<String> getLanguage();
+
     public abstract Property<Boolean> getFailOnError();
 }
