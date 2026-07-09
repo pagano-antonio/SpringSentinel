@@ -16,7 +16,7 @@ https://medium.com/@antoniopagano/how-to-use-springsentinel-245a3d2c433c
 
 
 
-## 🚀 Quick Start
+## Quick Start
 
 ### GitHub Action
 
